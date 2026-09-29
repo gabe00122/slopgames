@@ -131,9 +131,7 @@ impl Player {
         // Crouch (only stand up if there is headroom).
         if input.crouch {
             self.crouching = true;
-        } else if self.crouching
-            && !physics::collides(world, self.pos, HALF_WIDTH, STAND_HEIGHT)
-        {
+        } else if self.crouching && !physics::collides(world, self.pos, HALF_WIDTH, STAND_HEIGHT) {
             self.crouching = false;
         }
         let target_eye = if self.crouching { CROUCH_EYE } else { STAND_EYE };

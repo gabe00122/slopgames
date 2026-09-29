@@ -71,15 +71,15 @@ pub fn pause_menu(ui: &mut egui::Ui, in_raid: bool, settings: &mut crate::game::
 fn loadout_line(ui: &mut egui::Ui, profile: &Profile, slot: EquipSlot) {
     let item = profile.equipment.slot(slot);
     ui.horizontal(|ui| {
-        ui.add_sized([120.0, 16.0], egui::Label::new(RichText::new(slot.name()).color(style::TEXT_DIM)));
+        ui.add_sized(
+            [120.0, 16.0],
+            egui::Label::new(RichText::new(slot.name()).color(style::TEXT_DIM)),
+        );
         match item {
             Some(i) => {
                 let extra = match &i.weapon {
                     Some(w) => format!("  ({}/{})", w.rounds, w.capacity()),
-                    None => i
-                        .durability
-                        .map(|d| format!("  ({:.0} dur.)", d))
-                        .unwrap_or_default(),
+                    None => i.durability.map(|d| format!("  ({:.0} dur.)", d)).unwrap_or_default(),
                 };
                 ui.label(format!("{}{}", i.name(), extra));
             }
@@ -100,10 +100,19 @@ pub fn main_menu(
     let mut action = None;
     egui::Panel::left("main_left")
         .exact_size(430.0)
-        .frame(egui::Frame::NONE.fill(Color32::from_rgba_unmultiplied(14, 15, 14, 235)).inner_margin(28.0))
+        .frame(
+            egui::Frame::NONE
+                .fill(Color32::from_rgba_unmultiplied(14, 15, 14, 235))
+                .inner_margin(28.0),
+        )
         .show(ui, |ui| {
             ui.add_space(30.0);
-            ui.label(RichText::new("VOXEL").size(54.0).strong().color(Color32::from_rgb(228, 222, 200)));
+            ui.label(
+                RichText::new("VOXEL")
+                    .size(54.0)
+                    .strong()
+                    .color(Color32::from_rgb(228, 222, 200)),
+            );
             ui.label(RichText::new("RAID").size(54.0).strong().color(style::ACCENT));
             ui.label(RichText::new("extract or die trying").size(15.0).color(style::TEXT_DIM));
             ui.add_space(40.0);
@@ -116,7 +125,10 @@ pub fn main_menu(
                 action = Some(MainMenuAction::Stash);
             }
             ui.add_space(6.0);
-            let hideout = ui.add_enabled(hideout_available, egui::Button::new(RichText::new("HIDEOUT").size(19.0)).min_size([w, 44.0].into()));
+            let hideout = ui.add_enabled(
+                hideout_available,
+                egui::Button::new(RichText::new("HIDEOUT").size(19.0)).min_size([w, 44.0].into()),
+            );
             if hideout.clicked() {
                 action = Some(MainMenuAction::Hideout);
             }
@@ -132,7 +144,10 @@ pub fn main_menu(
             ui.collapsing("Profile options", |ui| {
                 ui.checkbox(confirm_reset, "I really want to wipe my profile");
                 if ui
-                    .add_enabled(*confirm_reset, egui::Button::new(RichText::new("Wipe profile").color(style::BAD)))
+                    .add_enabled(
+                        *confirm_reset,
+                        egui::Button::new(RichText::new("Wipe profile").color(style::BAD)),
+                    )
                     .clicked()
                 {
                     action = Some(MainMenuAction::ResetProfile);
@@ -142,32 +157,43 @@ pub fn main_menu(
 
     egui::Panel::right("main_right")
         .exact_size(430.0)
-        .frame(egui::Frame::NONE.fill(Color32::from_rgba_unmultiplied(14, 15, 14, 235)).inner_margin(24.0))
+        .frame(
+            egui::Frame::NONE
+                .fill(Color32::from_rgba_unmultiplied(14, 15, 14, 235))
+                .inner_margin(24.0),
+        )
         .show(ui, |ui| {
             ui.add_space(30.0);
             ui.label(RichText::new("PMC PROFILE").color(style::ACCENT));
             let s = &profile.stats;
-            let rate = if s.raids > 0 { s.survived as f32 / s.raids as f32 * 100.0 } else { 0.0 };
-            egui::Grid::new("stats").num_columns(2).spacing([24.0, 6.0]).show(ui, |ui| {
-                ui.label("Raids");
-                ui.label(s.raids.to_string());
-                ui.end_row();
-                ui.label("Survived / KIA / MIA");
-                ui.label(format!("{} / {} / {}", s.survived, s.killed, s.mia));
-                ui.end_row();
-                ui.label("Survival rate");
-                ui.label(format!("{rate:.0}%"));
-                ui.end_row();
-                ui.label("Kills");
-                ui.label(s.kills.to_string());
-                ui.end_row();
-                ui.label("Loot extracted");
-                ui.label(value_label(s.loot_value));
-                ui.end_row();
-                ui.label("Stash value");
-                ui.label(value_label(profile.stash.total_value()));
-                ui.end_row();
-            });
+            let rate = if s.raids > 0 {
+                s.survived as f32 / s.raids as f32 * 100.0
+            } else {
+                0.0
+            };
+            egui::Grid::new("stats")
+                .num_columns(2)
+                .spacing([24.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label("Raids");
+                    ui.label(s.raids.to_string());
+                    ui.end_row();
+                    ui.label("Survived / KIA / MIA");
+                    ui.label(format!("{} / {} / {}", s.survived, s.killed, s.mia));
+                    ui.end_row();
+                    ui.label("Survival rate");
+                    ui.label(format!("{rate:.0}%"));
+                    ui.end_row();
+                    ui.label("Kills");
+                    ui.label(s.kills.to_string());
+                    ui.end_row();
+                    ui.label("Loot extracted");
+                    ui.label(value_label(s.loot_value));
+                    ui.end_row();
+                    ui.label("Stash value");
+                    ui.label(value_label(profile.stash.total_value()));
+                    ui.end_row();
+                });
             ui.add_space(20.0);
             ui.label(RichText::new("LOADOUT").color(style::ACCENT));
             for slot in EquipSlot::ALL {
@@ -222,36 +248,47 @@ pub fn raid_summary(ui: &mut egui::Ui, outcome: &RaidOutcome) -> bool {
                 ui.add_space(14.0);
             });
             let t = outcome.time as i32;
-            egui::Grid::new("summary").num_columns(2).spacing([30.0, 8.0]).show(ui, |ui| {
-                ui.label("Time in raid");
-                ui.label(format!("{:02}:{:02}", t / 60, t % 60));
-                ui.end_row();
-                ui.label("Kills");
-                ui.label(outcome.kills.to_string());
-                ui.end_row();
-                ui.label("Gear brought in");
-                ui.label(value_label(outcome.value_in));
-                ui.end_row();
-                match outcome.kind {
-                    OutcomeKind::Survived(_) => {
-                        ui.label("Gear brought out");
-                        ui.label(value_label(outcome.value_out));
-                        ui.end_row();
-                        let gain = outcome.value_out as i64 - outcome.value_in as i64;
-                        ui.label("Profit");
-                        ui.label(
-                            RichText::new(format!("{}{}", if gain >= 0 { "+" } else { "-" }, value_label(gain.unsigned_abs())))
-                                .color(if gain >= 0 { style::GOOD } else { style::BAD }),
-                        );
-                        ui.end_row();
+            egui::Grid::new("summary")
+                .num_columns(2)
+                .spacing([30.0, 8.0])
+                .show(ui, |ui| {
+                    ui.label("Time in raid");
+                    ui.label(format!("{:02}:{:02}", t / 60, t % 60));
+                    ui.end_row();
+                    ui.label("Kills");
+                    ui.label(outcome.kills.to_string());
+                    ui.end_row();
+                    ui.label("Gear brought in");
+                    ui.label(value_label(outcome.value_in));
+                    ui.end_row();
+                    match outcome.kind {
+                        OutcomeKind::Survived(_) => {
+                            ui.label("Gear brought out");
+                            ui.label(value_label(outcome.value_out));
+                            ui.end_row();
+                            let gain = outcome.value_out as i64 - outcome.value_in as i64;
+                            ui.label("Profit");
+                            ui.label(
+                                RichText::new(format!(
+                                    "{}{}",
+                                    if gain >= 0 { "+" } else { "-" },
+                                    value_label(gain.unsigned_abs())
+                                ))
+                                .color(if gain >= 0 {
+                                    style::GOOD
+                                } else {
+                                    style::BAD
+                                }),
+                            );
+                            ui.end_row();
+                        }
+                        _ => {
+                            ui.label("Gear lost");
+                            ui.label(RichText::new(value_label(outcome.value_in)).color(style::BAD));
+                            ui.end_row();
+                        }
                     }
-                    _ => {
-                        ui.label("Gear lost");
-                        ui.label(RichText::new(value_label(outcome.value_in)).color(style::BAD));
-                        ui.end_row();
-                    }
-                }
-            });
+                });
             ui.add_space(16.0);
             ui.vertical_centered(|ui| {
                 if style::big_button(ui, "Continue", 300.0).clicked() {

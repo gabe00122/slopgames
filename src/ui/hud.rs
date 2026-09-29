@@ -4,8 +4,8 @@ use egui::{Align2, Color32, FontId, LayerId, Order, Pos2, Rect, Stroke, StrokeKi
 
 use super::style;
 use crate::game::{FrameStats, Settings};
-use crate::player::BodyPart;
 use crate::inventory::EquipSlot;
+use crate::player::BodyPart;
 use crate::raid::{Raid, EXTRACT_TIME};
 use crate::weapons::{AttachmentId, Slot};
 
@@ -28,7 +28,13 @@ pub fn draw_crosshair(p: &egui::Painter, center: Pos2, gap: f32, color: Color32)
 
 pub fn text(p: &egui::Painter, pos: Pos2, align: Align2, s: impl ToString, size: f32, color: Color32) -> Rect {
     // Drop shadow for readability over bright scenes.
-    p.text(pos + egui::vec2(1.0, 1.0), align, s.to_string(), FontId::proportional(size), Color32::from_black_alpha(180));
+    p.text(
+        pos + egui::vec2(1.0, 1.0),
+        align,
+        s.to_string(),
+        FontId::proportional(size),
+        Color32::from_black_alpha(180),
+    );
     p.text(pos, align, s.to_string(), FontId::proportional(size), color)
 }
 
@@ -87,7 +93,12 @@ fn body_diagram(p: &egui::Painter, origin: Pos2, raid: &Raid) {
         let frac = body.part_hp(part) / part.max_hp();
         let col = style::hp_color(frac);
         p.rect_filled(rect, 2.0, col.gamma_multiply(0.85));
-        p.rect_stroke(rect, 2.0, Stroke::new(1.0, Color32::from_black_alpha(200)), StrokeKind::Inside);
+        p.rect_stroke(
+            rect,
+            2.0,
+            Stroke::new(1.0, Color32::from_black_alpha(200)),
+            StrokeKind::Inside,
+        );
         p.text(
             rect.center(),
             Align2::CENTER_CENTER,
@@ -117,7 +128,11 @@ fn body_diagram(p: &egui::Painter, origin: Pos2, raid: &Raid) {
                 Align2::LEFT_TOP,
                 format!("{label} C{}\n{:.0}/{:.0}", d.class, a.durability, d.max_durability),
                 11.5,
-                if a.durability > 0.0 { Color32::from_rgb(190, 200, 210) } else { style::BAD },
+                if a.durability > 0.0 {
+                    Color32::from_rgb(190, 200, 210)
+                } else {
+                    style::BAD
+                },
             );
             y += 34.0;
         }
@@ -126,15 +141,32 @@ fn body_diagram(p: &egui::Painter, origin: Pos2, raid: &Raid) {
 
 fn weapon_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
     let Some(w) = raid.weapon() else {
-        text(p, Pos2::new(screen.right() - 20.0, screen.bottom() - 30.0), Align2::RIGHT_BOTTOM, "Unarmed", 16.0, style::TEXT_DIM);
+        text(
+            p,
+            Pos2::new(screen.right() - 20.0, screen.bottom() - 30.0),
+            Align2::RIGHT_BOTTOM,
+            "Unarmed",
+            16.0,
+            style::TEXT_DIM,
+        );
         return;
     };
     let stats = w.stats();
     let right = screen.right() - 24.0;
     let bottom = screen.bottom() - 24.0;
-    let bg = Rect::from_min_max(Pos2::new(right - 290.0, bottom - 108.0), Pos2::new(right + 12.0, bottom + 12.0));
+    let bg = Rect::from_min_max(
+        Pos2::new(right - 290.0, bottom - 108.0),
+        Pos2::new(right + 12.0, bottom + 12.0),
+    );
     p.rect_filled(bg, 4.0, Color32::from_black_alpha(120));
-    text(p, Pos2::new(right, bottom - 100.0), Align2::RIGHT_TOP, w.name(), 16.0, Color32::from_rgb(230, 225, 205));
+    text(
+        p,
+        Pos2::new(right, bottom - 100.0),
+        Align2::RIGHT_TOP,
+        w.name(),
+        16.0,
+        Color32::from_rgb(230, 225, 205),
+    );
     let mode = if stats.full_auto && w.auto_mode { "AUTO" } else { "SEMI" };
     let loaded = w.loaded.map(|a| a.def().short).unwrap_or("-");
     text(
@@ -186,7 +218,14 @@ fn weapon_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
         let mut fill = bar;
         fill.set_width(160.0 * frac);
         p.rect_filled(fill, 2.0, style::ACCENT);
-        text(p, c - egui::vec2(0.0, 8.0), Align2::CENTER_BOTTOM, format!("Reloading {}", r.ammo.def().short), 13.0, style::ACCENT);
+        text(
+            p,
+            c - egui::vec2(0.0, 8.0),
+            Align2::CENTER_BOTTOM,
+            format!("Reloading {}", r.ammo.def().short),
+            13.0,
+            style::ACCENT,
+        );
     }
 }
 
@@ -197,7 +236,14 @@ fn extract_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
     }
     let player = &raid.player;
     let mut y = 64.0;
-    text(p, Pos2::new(screen.right() - 16.0, y), Align2::RIGHT_TOP, "EXFILTRATION", 13.0, style::GOOD);
+    text(
+        p,
+        Pos2::new(screen.right() - 16.0, y),
+        Align2::RIGHT_TOP,
+        "EXFILTRATION",
+        13.0,
+        style::GOOD,
+    );
     y += 20.0;
     for e in &raid.extracts {
         let d = e.pos - player.pos;
@@ -227,7 +273,14 @@ fn extract_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
     }
 }
 
-pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &FrameStats, adapter: &str, inventory_open: bool) {
+pub fn draw_hud(
+    ui: &mut egui::Ui,
+    raid: &Raid,
+    settings: &Settings,
+    stats: &FrameStats,
+    adapter: &str,
+    inventory_open: bool,
+) {
     let ctx = ui.ctx().clone();
     let screen = ctx.content_rect();
     let p = hud_painter(&ctx);
@@ -247,7 +300,11 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
                     p.circle_filled(center, 2.2, Color32::from_rgb(255, 40, 30));
                 }
                 Some(AttachmentId::Holo1p87) => {
-                    p.circle_stroke(center, 14.0, Stroke::new(1.5, Color32::from_rgba_unmultiplied(255, 60, 40, 220)));
+                    p.circle_stroke(
+                        center,
+                        14.0,
+                        Stroke::new(1.5, Color32::from_rgba_unmultiplied(255, 60, 40, 220)),
+                    );
                     p.circle_filled(center, 1.8, Color32::from_rgb(255, 60, 40));
                 }
                 _ => {}
@@ -277,7 +334,12 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
     // --- Damage feedback ---
     if raid.damage_flash > 0.0 {
         let a = (raid.damage_flash * 140.0) as u8;
-        p.rect_stroke(screen, 0.0, Stroke::new(60.0, Color32::from_rgba_unmultiplied(170, 0, 0, a)), StrokeKind::Inside);
+        p.rect_stroke(
+            screen,
+            0.0,
+            Stroke::new(60.0, Color32::from_rgba_unmultiplied(170, 0, 0, a)),
+            StrokeKind::Inside,
+        );
     }
     if raid.hit_indicator > 0.0 {
         if let Some(from) = raid.last_hit_from {
@@ -301,7 +363,10 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
 
     // --- Stamina ---
     let w = 220.0;
-    let bar = Rect::from_min_size(Pos2::new(center.x - w / 2.0, screen.bottom() - 34.0), egui::vec2(w, 6.0));
+    let bar = Rect::from_min_size(
+        Pos2::new(center.x - w / 2.0, screen.bottom() - 34.0),
+        egui::vec2(w, 6.0),
+    );
     p.rect_filled(bar, 1.0, Color32::from_black_alpha(140));
     let mut fill = bar;
     fill.set_width(w * player.stamina / 100.0);
@@ -339,7 +404,14 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
     // Interaction prompt.
     if alive && !inventory_open {
         if let Some(i) = raid.interaction() {
-            text(&p, center + egui::vec2(0.0, 48.0), Align2::CENTER_CENTER, raid.interaction_label(i), 16.0, Color32::WHITE);
+            text(
+                &p,
+                center + egui::vec2(0.0, 48.0),
+                Align2::CENTER_CENTER,
+                raid.interaction_label(i),
+                16.0,
+                Color32::WHITE,
+            );
         }
     }
 
@@ -400,7 +472,14 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
         let target = raid
             .world
             .raycast(eye, dir, 8.0, |b| b.is_solid())
-            .map(|h| format!("{} @ {} (dmg {:.0}%)", h.block.name(), h.pos, raid.world.damage_frac(h.pos) * 100.0))
+            .map(|h| {
+                format!(
+                    "{} @ {} (dmg {:.0}%)",
+                    h.block.name(),
+                    h.pos,
+                    raid.world.damage_frac(h.pos) * 100.0
+                )
+            })
             .unwrap_or_else(|| "-".into());
         let alive_scavs = raid.scavs.iter().filter(|s| s.alive()).count();
         let lines = [
@@ -410,7 +489,10 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
                 player.pos.x, player.pos.y, player.pos.z, player.yaw, player.pitch
             ),
             format!("chunks drawn {}  tris {}", stats.chunks_drawn, stats.triangles),
-            format!("ground {}  crouch {}  noclip {}", player.on_ground, player.crouching, player.noclip),
+            format!(
+                "ground {}  crouch {}  noclip {}",
+                player.on_ground, player.crouching, player.noclip
+            ),
             format!("looking at {target}"),
             format!("seed {}  scavs alive {}", raid.seed, alive_scavs),
         ];
@@ -445,10 +527,7 @@ pub fn death_overlay(ui: &mut egui::Ui, raid: &Raid) -> bool {
             let t = raid.time as i32;
             ui.label(format!("Time in raid: {:02}:{:02}", t / 60, t % 60));
             ui.label(format!("Kills: {}", raid.kills));
-            ui.label(
-                egui::RichText::new("Everything you brought into the raid is lost.")
-                    .color(style::WARN),
-            );
+            ui.label(egui::RichText::new("Everything you brought into the raid is lost.").color(style::WARN));
             ui.add_space(8.0);
             if style::big_button(ui, "Continue", 340.0).clicked() {
                 restart = true;

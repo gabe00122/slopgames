@@ -74,10 +74,17 @@ impl StationKind {
         let c = match (self, level) {
             (StationKind::Workbench, 1) => vec![b(Screws, 4), b(Bolts, 2), rub(20_000)],
             (StationKind::Workbench, 2) => vec![b(WeaponParts, 2), b(Toolset, 1), b(Nuts, 3), rub(60_000)],
-            (StationKind::Workbench, 3) => vec![b(CircuitBoard, 2), b(WeaponParts, 2), b(FuelCanister, 1), rub(150_000)],
+            (StationKind::Workbench, 3) => {
+                vec![b(CircuitBoard, 2), b(WeaponParts, 2), b(FuelCanister, 1), rub(150_000)]
+            }
             (StationKind::AmmoPress, 1) => vec![b(MetalScrap, 3), b(Bolts, 1), rub(25_000)],
             (StationKind::AmmoPress, 2) => vec![b(Toolset, 1), b(GunpowderKite, 2), b(Nuts, 2), rub(50_000)],
-            (StationKind::AmmoPress, 3) => vec![b(GunpowderEagle, 2), b(CircuitBoard, 1), b(WeaponParts, 1), rub(120_000)],
+            (StationKind::AmmoPress, 3) => vec![
+                b(GunpowderEagle, 2),
+                b(CircuitBoard, 1),
+                b(WeaponParts, 1),
+                rub(120_000),
+            ],
             (StationKind::Medstation, 1) => vec![b(DuctTape, 1), b(Matches, 2), rub(15_000)],
             (StationKind::Medstation, 2) => vec![b(CircuitBoard, 1), b(Battery, 1), b(Wires, 1), rub(40_000)],
             _ => return None,
@@ -123,32 +130,170 @@ pub fn recipes() -> Vec<Recipe> {
     vec![
         // Workbench: attachments (and eventually whole receivers).
         r(wb, 1, vec![b(Screws, 2), b(DuctTape, 1)], att(AttachmentId::Rk2Grip), 1),
-        r(wb, 1, vec![b(MetalScrap, 2), b(Bolts, 1)], att(AttachmentId::Ak74Brake), 1),
-        r(wb, 1, vec![b(MetalScrap, 2), b(Screws, 1)], att(AttachmentId::AkmSlantBrake), 1),
-        r(wb, 1, vec![b(Wires, 1), b(Battery, 1), b(Screws, 2)], att(AttachmentId::CobraRedDot), 1),
-        r(wb, 2, vec![b(WeaponParts, 1), b(MetalScrap, 3), b(DuctTape, 1)], att(AttachmentId::Pbs4Suppressor), 1),
-        r(wb, 2, vec![b(WeaponParts, 1), b(MetalScrap, 2)], att(AttachmentId::Suppressor9mm), 1),
-        r(wb, 2, vec![b(MetalScrap, 2), b(Screws, 2), b(Bolts, 1)], att(AttachmentId::Ak74Mag45), 1),
-        r(wb, 2, vec![b(DuctTape, 1), b(Screws, 2), b(Nuts, 1)], att(AttachmentId::ZhukovStock), 1),
-        r(wb, 2, vec![b(MetalScrap, 2), b(Nuts, 2)], att(AttachmentId::Dtk1Compensator), 1),
-        r(wb, 3, vec![b(CircuitBoard, 1), b(Battery, 1), b(Wires, 2)], att(AttachmentId::Pso1Scope), 1),
-        r(wb, 3, vec![b(CircuitBoard, 1), b(Wires, 2), b(Battery, 1)], att(AttachmentId::Holo1p87), 1),
-        r(wb, 3, vec![b(WeaponParts, 1), b(MetalScrap, 4), b(Bolts, 2)], att(AttachmentId::Rpk16Drum95), 1),
-        r(wb, 3, vec![b(WeaponParts, 2), b(MetalScrap, 4), b(Bolts, 2)], ItemKind::Weapon(ReceiverId::Ak74n), 1),
+        r(
+            wb,
+            1,
+            vec![b(MetalScrap, 2), b(Bolts, 1)],
+            att(AttachmentId::Ak74Brake),
+            1,
+        ),
+        r(
+            wb,
+            1,
+            vec![b(MetalScrap, 2), b(Screws, 1)],
+            att(AttachmentId::AkmSlantBrake),
+            1,
+        ),
+        r(
+            wb,
+            1,
+            vec![b(Wires, 1), b(Battery, 1), b(Screws, 2)],
+            att(AttachmentId::CobraRedDot),
+            1,
+        ),
+        r(
+            wb,
+            2,
+            vec![b(WeaponParts, 1), b(MetalScrap, 3), b(DuctTape, 1)],
+            att(AttachmentId::Pbs4Suppressor),
+            1,
+        ),
+        r(
+            wb,
+            2,
+            vec![b(WeaponParts, 1), b(MetalScrap, 2)],
+            att(AttachmentId::Suppressor9mm),
+            1,
+        ),
+        r(
+            wb,
+            2,
+            vec![b(MetalScrap, 2), b(Screws, 2), b(Bolts, 1)],
+            att(AttachmentId::Ak74Mag45),
+            1,
+        ),
+        r(
+            wb,
+            2,
+            vec![b(DuctTape, 1), b(Screws, 2), b(Nuts, 1)],
+            att(AttachmentId::ZhukovStock),
+            1,
+        ),
+        r(
+            wb,
+            2,
+            vec![b(MetalScrap, 2), b(Nuts, 2)],
+            att(AttachmentId::Dtk1Compensator),
+            1,
+        ),
+        r(
+            wb,
+            3,
+            vec![b(CircuitBoard, 1), b(Battery, 1), b(Wires, 2)],
+            att(AttachmentId::Pso1Scope),
+            1,
+        ),
+        r(
+            wb,
+            3,
+            vec![b(CircuitBoard, 1), b(Wires, 2), b(Battery, 1)],
+            att(AttachmentId::Holo1p87),
+            1,
+        ),
+        r(
+            wb,
+            3,
+            vec![b(WeaponParts, 1), b(MetalScrap, 4), b(Bolts, 2)],
+            att(AttachmentId::Rpk16Drum95),
+            1,
+        ),
+        r(
+            wb,
+            3,
+            vec![b(WeaponParts, 2), b(MetalScrap, 4), b(Bolts, 2)],
+            ItemKind::Weapon(ReceiverId::Ak74n),
+            1,
+        ),
         // Ammo press.
-        r(ap, 1, vec![b(GunpowderKite, 1), b(MetalScrap, 1)], ammo(AmmoType::Pst9), 60),
-        r(ap, 1, vec![b(GunpowderKite, 1), b(MetalScrap, 2)], ammo(AmmoType::Ps545), 60),
-        r(ap, 1, vec![b(GunpowderKite, 1), b(MetalScrap, 2)], ammo(AmmoType::Ps762), 60),
-        r(ap, 2, vec![b(GunpowderKite, 1), b(MetalScrap, 1), b(Screws, 1)], ammo(AmmoType::Rip9), 60),
-        r(ap, 2, vec![b(GunpowderKite, 1), b(MetalScrap, 2), b(Screws, 1)], ammo(AmmoType::Hp545), 60),
-        r(ap, 2, vec![b(GunpowderKite, 1), b(MetalScrap, 2), b(Screws, 1)], ammo(AmmoType::Hp762), 60),
-        r(ap, 3, vec![b(GunpowderEagle, 1), b(MetalScrap, 2), b(Bolts, 1)], ammo(AmmoType::Ap9), 40),
-        r(ap, 3, vec![b(GunpowderEagle, 1), b(MetalScrap, 2), b(Bolts, 1)], ammo(AmmoType::Bs545), 40),
-        r(ap, 3, vec![b(GunpowderEagle, 1), b(MetalScrap, 3), b(Bolts, 1)], ammo(AmmoType::Bp762), 40),
+        r(
+            ap,
+            1,
+            vec![b(GunpowderKite, 1), b(MetalScrap, 1)],
+            ammo(AmmoType::Pst9),
+            60,
+        ),
+        r(
+            ap,
+            1,
+            vec![b(GunpowderKite, 1), b(MetalScrap, 2)],
+            ammo(AmmoType::Ps545),
+            60,
+        ),
+        r(
+            ap,
+            1,
+            vec![b(GunpowderKite, 1), b(MetalScrap, 2)],
+            ammo(AmmoType::Ps762),
+            60,
+        ),
+        r(
+            ap,
+            2,
+            vec![b(GunpowderKite, 1), b(MetalScrap, 1), b(Screws, 1)],
+            ammo(AmmoType::Rip9),
+            60,
+        ),
+        r(
+            ap,
+            2,
+            vec![b(GunpowderKite, 1), b(MetalScrap, 2), b(Screws, 1)],
+            ammo(AmmoType::Hp545),
+            60,
+        ),
+        r(
+            ap,
+            2,
+            vec![b(GunpowderKite, 1), b(MetalScrap, 2), b(Screws, 1)],
+            ammo(AmmoType::Hp762),
+            60,
+        ),
+        r(
+            ap,
+            3,
+            vec![b(GunpowderEagle, 1), b(MetalScrap, 2), b(Bolts, 1)],
+            ammo(AmmoType::Ap9),
+            40,
+        ),
+        r(
+            ap,
+            3,
+            vec![b(GunpowderEagle, 1), b(MetalScrap, 2), b(Bolts, 1)],
+            ammo(AmmoType::Bs545),
+            40,
+        ),
+        r(
+            ap,
+            3,
+            vec![b(GunpowderEagle, 1), b(MetalScrap, 3), b(Bolts, 1)],
+            ammo(AmmoType::Bp762),
+            40,
+        ),
         // Medstation.
         r(md, 1, vec![b(DuctTape, 1), rub(5_000)], ItemKind::Med(MedKind::Ai2), 1),
-        r(md, 2, vec![b(DuctTape, 2), b(Wires, 1)], ItemKind::Med(MedKind::Salewa), 1),
-        r(md, 2, vec![b(Toolset, 1), b(DuctTape, 2)], ItemKind::Med(MedKind::Surv12), 1),
+        r(
+            md,
+            2,
+            vec![b(DuctTape, 2), b(Wires, 1)],
+            ItemKind::Med(MedKind::Salewa),
+            1,
+        ),
+        r(
+            md,
+            2,
+            vec![b(Toolset, 1), b(DuctTape, 2)],
+            ItemKind::Med(MedKind::Surv12),
+            1,
+        ),
     ]
 }
 
@@ -234,7 +379,9 @@ pub fn craft(state: &HideoutState, stash: &mut Grid, r: &Recipe) -> Result<(), S
     let mut trial = stash.clone();
     pay(&mut trial, &r.inputs);
     for it in make_output(r) {
-        trial.insert(it).map_err(|_| "Not enough space in the stash".to_string())?;
+        trial
+            .insert(it)
+            .map_err(|_| "Not enough space in the stash".to_string())?;
     }
     *stash = trial;
     Ok(())
@@ -274,7 +421,10 @@ mod tests {
         assert_eq!(upgrade(&mut state, &mut stash, StationKind::Workbench), Ok(1));
         assert_eq!(have(&stash, ItemKind::Barter(BarterKind::Bolts)), 0);
         assert_eq!(have(&stash, ItemKind::Roubles), 10_000);
-        assert!(upgrade(&mut state, &mut stash, StationKind::Workbench).is_err(), "can't afford level 2");
+        assert!(
+            upgrade(&mut state, &mut stash, StationKind::Workbench).is_err(),
+            "can't afford level 2"
+        );
         craft(&state, &mut stash, &grip).unwrap();
         assert_eq!(have(&stash, ItemKind::Attachment(AttachmentId::Rk2Grip)), 1);
         assert_eq!(have(&stash, ItemKind::Barter(BarterKind::Screws)), 0);
@@ -303,8 +453,12 @@ mod tests {
         let mut state = HideoutState::default();
         state.set_level(StationKind::Workbench, 3);
         let mut stash = Grid::new(3, 1);
-        stash.insert(Item::stack(ItemKind::Barter(BarterKind::WeaponParts), 1)).unwrap();
-        stash.insert(Item::stack(ItemKind::Barter(BarterKind::MetalScrap), 3)).unwrap();
+        stash
+            .insert(Item::stack(ItemKind::Barter(BarterKind::WeaponParts), 1))
+            .unwrap();
+        stash
+            .insert(Item::stack(ItemKind::Barter(BarterKind::MetalScrap), 3))
+            .unwrap();
         let supp = recipes()
             .into_iter()
             .find(|r| r.output == ItemKind::Attachment(AttachmentId::Suppressor9mm))
@@ -322,7 +476,10 @@ mod tests {
         for s in StationKind::ALL {
             for lvl in 1..=s.max_level() {
                 assert!(s.upgrade_cost(lvl).is_some(), "{s:?} {lvl}");
-                assert!(recipes().iter().any(|r| r.station == s && r.level == lvl), "{s:?} {lvl}");
+                assert!(
+                    recipes().iter().any(|r| r.station == s && r.level == lvl),
+                    "{s:?} {lvl}"
+                );
             }
             assert!(s.upgrade_cost(s.max_level() + 1).is_none());
         }

@@ -42,7 +42,12 @@ pub struct ReceiverDef {
 }
 
 impl ReceiverId {
-    pub const ALL: [ReceiverId; 4] = [ReceiverId::Grach, ReceiverId::Vityaz, ReceiverId::Ak74n, ReceiverId::Akm];
+    pub const ALL: [ReceiverId; 4] = [
+        ReceiverId::Grach,
+        ReceiverId::Vityaz,
+        ReceiverId::Ak74n,
+        ReceiverId::Akm,
+    ];
 
     pub fn def(self) -> &'static ReceiverDef {
         match self {
@@ -76,7 +81,11 @@ impl ReceiverId {
                 reload_time: 2.4,
                 weight: 2.9,
                 slots: &[Slot::Muzzle, Slot::Stock, Slot::Sight, Slot::Magazine, Slot::Grip],
-                defaults: &[AttachmentId::Pp19Brake, AttachmentId::Pp19FoldingStock, AttachmentId::Pp19Mag30],
+                defaults: &[
+                    AttachmentId::Pp19Brake,
+                    AttachmentId::Pp19FoldingStock,
+                    AttachmentId::Pp19Mag30,
+                ],
                 pattern_phase: 1.7,
                 size: (4, 2),
                 value: 28_000,
@@ -93,7 +102,14 @@ impl ReceiverId {
                 spread: 0.2,
                 reload_time: 2.7,
                 weight: 3.3,
-                slots: &[Slot::Barrel, Slot::Muzzle, Slot::Stock, Slot::Sight, Slot::Magazine, Slot::Grip],
+                slots: &[
+                    Slot::Barrel,
+                    Slot::Muzzle,
+                    Slot::Stock,
+                    Slot::Sight,
+                    Slot::Magazine,
+                    Slot::Grip,
+                ],
                 defaults: &[
                     AttachmentId::Ak74Barrel415,
                     AttachmentId::Ak74Brake,
@@ -116,7 +132,14 @@ impl ReceiverId {
                 spread: 0.22,
                 reload_time: 2.9,
                 weight: 3.6,
-                slots: &[Slot::Barrel, Slot::Muzzle, Slot::Stock, Slot::Sight, Slot::Magazine, Slot::Grip],
+                slots: &[
+                    Slot::Barrel,
+                    Slot::Muzzle,
+                    Slot::Stock,
+                    Slot::Sight,
+                    Slot::Magazine,
+                    Slot::Grip,
+                ],
                 defaults: &[
                     AttachmentId::AkmBarrel415,
                     AttachmentId::AkmSlantBrake,

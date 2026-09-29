@@ -193,10 +193,7 @@ fn create_depth(device: &wgpu::Device, w: u32, h: u32) -> wgpu::TextureView {
 }
 
 impl Renderer {
-    pub async fn new(
-        window: Arc<Window>,
-        display: winit::event_loop::OwnedDisplayHandle,
-    ) -> Result<Self, String> {
+    pub async fn new(window: Arc<Window>, display: winit::event_loop::OwnedDisplayHandle) -> Result<Self, String> {
         let size = window.inner_size();
         // Prefer the native APIs (Vulkan/Metal/DX12); fall back to GL if unavailable.
         let env_backends = std::env::var("WGPU_BACKEND").is_ok();
@@ -253,10 +250,12 @@ impl Renderer {
             .copied()
             .find(|f| matches!(f, wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm))
             .or_else(|| {
-                caps.formats
-                    .iter()
-                    .copied()
-                    .find(|f| matches!(f, wgpu::TextureFormat::Bgra8UnormSrgb | wgpu::TextureFormat::Rgba8UnormSrgb))
+                caps.formats.iter().copied().find(|f| {
+                    matches!(
+                        f,
+                        wgpu::TextureFormat::Bgra8UnormSrgb | wgpu::TextureFormat::Rgba8UnormSrgb
+                    )
+                })
             })
             .unwrap_or(caps.formats[0]);
         log::debug!("Surface formats: {:?}, using {:?}", caps.formats, surface_format);
@@ -453,11 +452,7 @@ impl Renderer {
             cache: None,
         });
 
-        let egui_renderer = egui_wgpu::Renderer::new(
-            &device,
-            config.format,
-            egui_wgpu::RendererOptions::default(),
-        );
+        let egui_renderer = egui_wgpu::Renderer::new(&device, config.format, egui_wgpu::RendererOptions::default());
 
         let dyn_world = DynamicMesh::new(&device, "dynamic world");
         let dyn_vm = DynamicMesh::new(&device, "dynamic viewmodel");
@@ -576,8 +571,7 @@ impl Renderer {
         // egui textures must always be applied, even if we skip this frame.
         for (id, deltas) in textures_delta.set.drain() {
             for delta in deltas {
-                self.egui_renderer
-                    .update_texture(&self.device, &self.queue, id, &delta);
+                self.egui_renderer.update_texture(&self.device, &self.queue, id, &delta);
             }
         }
 
@@ -725,13 +719,9 @@ impl Renderer {
             size_in_pixels: [self.config.width, self.config.height],
             pixels_per_point,
         };
-        let extra_cmds = self.egui_renderer.update_buffers(
-            &self.device,
-            &self.queue,
-            &mut encoder,
-            &primitives,
-            &screen,
-        );
+        let extra_cmds =
+            self.egui_renderer
+                .update_buffers(&self.device, &self.queue, &mut encoder, &primitives, &screen);
         {
             let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("egui pass"),

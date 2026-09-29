@@ -159,7 +159,11 @@ impl Raid {
                 .partial_cmp(&a.pos.distance(spawn))
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        let far: Vec<ExtractPoint> = extracts.iter().filter(|e| e.pos.distance(spawn) > 70.0).cloned().collect();
+        let far: Vec<ExtractPoint> = extracts
+            .iter()
+            .filter(|e| e.pos.distance(spawn) > 70.0)
+            .cloned()
+            .collect();
         let extracts = if far.len() >= 2 {
             far.into_iter().take(3).collect()
         } else {
@@ -229,7 +233,10 @@ impl Raid {
         };
         let names: Vec<String> = raid.extracts.iter().map(|e| e.name.clone()).collect();
         raid.message(format!("Extracts: {}", names.join(", ")), [140, 220, 140]);
-        raid.message("Find loot and reach an extraction point. [O] shows exits.", [220, 210, 170]);
+        raid.message(
+            "Find loot and reach an extraction point. [O] shows exits.",
+            [220, 210, 170],
+        );
         raid
     }
 
@@ -274,12 +281,21 @@ impl Raid {
                 return Some(l);
             }
         }
-        cal.ammo_types().iter().copied().find(|a| self.equipment.ammo_count(*a) > 0)
+        cal.ammo_types()
+            .iter()
+            .copied()
+            .find(|a| self.equipment.ammo_count(*a) > 0)
     }
 
     pub fn reserve_for_active(&self) -> u32 {
         self.weapon()
-            .map(|w| w.caliber().ammo_types().iter().map(|a| self.equipment.ammo_count(*a)).sum())
+            .map(|w| {
+                w.caliber()
+                    .ammo_types()
+                    .iter()
+                    .map(|a| self.equipment.ammo_count(*a))
+                    .sum()
+            })
             .unwrap_or(0)
     }
 
@@ -320,7 +336,11 @@ impl Raid {
     pub fn player_hitboxes(&self) -> TargetBoxes {
         TargetBoxes {
             target: TargetId::Player,
-            boxes: humanoid_hitboxes(self.player.pos, self.player.yaw, if self.player.crouching { 1.0 } else { 0.0 }),
+            boxes: humanoid_hitboxes(
+                self.player.pos,
+                self.player.yaw,
+                if self.player.crouching { 1.0 } else { 0.0 },
+            ),
         }
     }
 
@@ -435,7 +455,9 @@ impl Raid {
         if self.heal.is_some() || self.dead.is_some() {
             return;
         }
-        let Some(item) = self.equipment.grid(grid).and_then(|g| g.get(uid)) else { return };
+        let Some(item) = self.equipment.grid(grid).and_then(|g| g.get(uid)) else {
+            return;
+        };
         let ItemKind::Med(kind) = item.item.kind else { return };
         if kind.is_surgery() && !self.player.body.has_destroyed_limb() {
             self.message("No destroyed limbs to operate on", [200, 200, 200]);
@@ -470,7 +492,9 @@ impl Raid {
 
     fn finish_heal(&mut self, h: HealState) {
         let body = &mut self.player.body;
-        let Some(grid) = self.equipment.grid_mut(h.grid) else { return };
+        let Some(grid) = self.equipment.grid_mut(h.grid) else {
+            return;
+        };
         let Some(p) = grid.get_mut(h.uid) else { return };
         let uses = p.item.uses.unwrap_or(0);
         let msg;
@@ -563,7 +587,11 @@ impl Raid {
         }
 
         // --- Movement ---
-        let mut mv = if accept { gather_move_input(input) } else { Default::default() };
+        let mut mv = if accept {
+            gather_move_input(input)
+        } else {
+            Default::default()
+        };
         let armor_weight: f32 = [EquipSlot::Helmet, EquipSlot::Armor]
             .iter()
             .filter_map(|s| self.equipment.armor_state(*s))
@@ -619,7 +647,14 @@ impl Raid {
         let info = self.player_info();
         let mut shots: Vec<ScavShot> = Vec::new();
         for s in &mut self.scavs {
-            s.update(dt, &self.world, &info, &self.map.patrol_points, &mut self.rng, &mut shots);
+            s.update(
+                dt,
+                &self.world,
+                &info,
+                &self.map.patrol_points,
+                &mut self.rng,
+                &mut shots,
+            );
         }
         for shot in shots {
             self.resolve_scav_shot(shot);
@@ -826,7 +861,10 @@ impl Raid {
             return;
         }
         let Some(ammo) = self.next_reload_ammo() else {
-            self.message("No ammo for this weapon in your rig, pockets or backpack", [230, 120, 90]);
+            self.message(
+                "No ammo for this weapon in your rig, pockets or backpack",
+                [230, 120, 90],
+            );
             return;
         };
         let Some(w) = self.weapon() else { return };
@@ -844,7 +882,9 @@ impl Raid {
 
     fn finish_reload(&mut self, r: ReloadState) {
         let slot = self.active.equip_slot();
-        let Some(w) = self.equipment.weapon_mut(slot) else { return };
+        let Some(w) = self.equipment.weapon_mut(slot) else {
+            return;
+        };
         let cap = w.capacity();
         // Unload rounds of a different type back into the pouches.
         let mut returned = None;
@@ -925,7 +965,8 @@ impl Raid {
             let color = crate::render::atlas::tile_color(tile);
             let n = b.normal.as_vec3();
             if b.destroyed {
-                self.effects.block_break(b.pos.as_vec3() + Vec3::splat(0.5), color, &mut self.rng);
+                self.effects
+                    .block_break(b.pos.as_vec3() + Vec3::splat(0.5), color, &mut self.rng);
             } else if b.penetrated {
                 // Entry and exit puffs so shots through walls read clearly.
                 self.effects.debris(b.point + n * 0.02, n, color, 4, &mut self.rng);
@@ -952,7 +993,11 @@ impl Raid {
         if !s.alive() {
             return;
         }
-        let armor = if part == BodyPart::Head { s.helmet.as_mut() } else { s.armor.as_mut() };
+        let armor = if part == BodyPart::Head {
+            s.helmet.as_mut()
+        } else {
+            s.armor.as_mut()
+        };
         let res = resolve_armor(armor, part, damage * part.damage_mult(), pen, &mut self.rng);
         let out = s.body.damage(part, res.damage);
         s.on_hit(from, &mut self.rng);
@@ -962,7 +1007,10 @@ impl Raid {
             s.kill(time);
             let name = s.name.clone();
             self.kills += 1;
-            self.message(format!("Killed {} ({}, {})", name, part.name(), ammo.def().short), [230, 110, 90]);
+            self.message(
+                format!("Killed {} ({}, {})", name, part.name(), ammo.def().short),
+                [230, 110, 90],
+            );
         } else if res.blocked {
             let eye = s.eye();
             self.effects.sparks(from.lerp(eye, 0.98), Vec3::Y, &mut self.rng);
@@ -976,7 +1024,8 @@ impl Raid {
             vec![]
         };
         let out = ballistics::fire(&mut self.world, shot.origin, shot.dir, shot.ammo, 250.0, &targets, None);
-        self.effects.tracer(shot.origin + shot.dir * 0.4, out.end, shot.ammo.def().tracer);
+        self.effects
+            .tracer(shot.origin + shot.dir * 0.4, out.end, shot.ammo.def().tracer);
         self.effects.muzzle_flash(shot.origin + shot.dir * 0.35);
         let dir = shot.dir;
         if out.end.distance(self.player.pos) < 120.0 {
@@ -994,7 +1043,13 @@ impl Raid {
                 EquipSlot::Armor
             };
             let mut state = self.equipment.armor_state(slot);
-            let res = resolve_armor(state.as_mut(), hit.part, hit.damage * hit.part.damage_mult(), hit.pen, &mut self.rng);
+            let res = resolve_armor(
+                state.as_mut(),
+                hit.part,
+                hit.damage * hit.part.damage_mult(),
+                hit.pen,
+                &mut self.rng,
+            );
             if let Some(s) = state {
                 self.equipment.set_durability(slot, s.durability);
             }
@@ -1003,7 +1058,11 @@ impl Raid {
             self.last_hit_from = Some(shot.origin);
             self.hit_indicator = 1.2;
             self.heal = None;
-            let shooter = self.scavs.get(shot.scav).map(|s| s.name.clone()).unwrap_or_else(|| "Scav".into());
+            let shooter = self
+                .scavs
+                .get(shot.scav)
+                .map(|s| s.name.clone())
+                .unwrap_or_else(|| "Scav".into());
             self.last_damage_cause = format!("{} - {} ({})", shooter, hit.part.name(), shot.ammo.def().name);
             if res.blocked {
                 self.message(format!("Armor stopped a round ({})", hit.part.name()), [170, 170, 200]);
@@ -1128,7 +1187,10 @@ mod tests {
             }
         }
         assert!(destroyed, "sustained AP fire should destroy a brick block");
-        assert!(!raid.world.take_dirty().is_empty(), "destroyed block must trigger a remesh");
+        assert!(
+            !raid.world.take_dirty().is_empty(),
+            "destroyed block must trigger a remesh"
+        );
     }
 
     #[test]
@@ -1207,5 +1269,51 @@ mod tests {
         let stats = raid.weapon().unwrap().stats();
         raid.fire_player_shot(stats);
         assert_eq!(raid.scavs[i].state, ScavState::Investigate);
+    }
+}
+
+#[cfg(test)]
+mod soak {
+    use super::*;
+
+    /// Simulate whole raids with live AI to catch panics and stuck states.
+    #[test]
+    fn long_raids_are_stable() {
+        let settings = Settings::default();
+        let input = Input::default();
+        for seed in [1u64, 2, 3] {
+            let (_, eq) = crate::inventory::starter_profile_items();
+            let mut raid = Raid::new(seed, eq);
+            let start: Vec<Vec3> = raid.scavs.iter().map(|s| s.pos).collect();
+            // Three minutes of game time at 30 Hz.
+            for _ in 0..(30 * 180) {
+                raid.update(1.0 / 30.0, &input, &settings, false);
+                if raid.finished.is_some() {
+                    break;
+                }
+            }
+            for s in &raid.scavs {
+                assert!(s.pos.is_finite(), "scav position became NaN");
+                assert!(s.pos.y > -5.0, "scav fell out of the world");
+            }
+            // Patrolling scavs should actually move around.
+            let moved = raid
+                .scavs
+                .iter()
+                .zip(&start)
+                .filter(|(s, p)| s.pos.distance(**p) > 3.0)
+                .count();
+            let states: Vec<_> = raid.scavs.iter().map(|s| format!("{:?}", s.state)).collect();
+            println!(
+                "seed {seed}: t={:.0}s moved={}/{} player_hp={:.0} dead={} states={:?}",
+                raid.time,
+                moved,
+                raid.scavs.len(),
+                raid.player.body.total(),
+                raid.dead.is_some(),
+                states
+            );
+            assert!(moved >= raid.scavs.len() / 3, "seed {seed}: only {moved} scavs moved");
+        }
     }
 }

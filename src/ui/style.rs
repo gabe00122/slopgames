@@ -56,7 +56,11 @@ pub fn apply(ctx: &egui::Context) {
 pub fn big_button(ui: &mut egui::Ui, text: &str, width: f32) -> egui::Response {
     ui.add_sized(
         [width, 44.0],
-        egui::Button::new(egui::RichText::new(text).size(19.0).color(Color32::from_rgb(225, 220, 200))),
+        egui::Button::new(
+            egui::RichText::new(text)
+                .size(19.0)
+                .color(Color32::from_rgb(225, 220, 200)),
+        ),
     )
 }
 

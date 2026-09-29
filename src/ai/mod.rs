@@ -100,8 +100,8 @@ pub struct Scav {
 }
 
 const NAMES: [&str; 14] = [
-    "Vitya", "Sanya", "Kolyan", "Borya", "Dimon", "Serega", "Tolyan", "Zhenya", "Grisha", "Lyokha", "Pashka",
-    "Vovan", "Styopa", "Mishka",
+    "Vitya", "Sanya", "Kolyan", "Borya", "Dimon", "Serega", "Tolyan", "Zhenya", "Grisha", "Lyokha", "Pashka", "Vovan",
+    "Styopa", "Mishka",
 ];
 
 fn pick_color(rng: &mut Rng, palette: &[[u8; 3]]) -> [u8; 4] {
@@ -155,11 +155,17 @@ impl Scav {
             None
         };
         let look = ScavLook {
-            jacket: pick_color(rng, &[[40, 52, 92], [30, 30, 34], [74, 84, 52], [96, 96, 100], [110, 40, 36]]),
+            jacket: pick_color(
+                rng,
+                &[[40, 52, 92], [30, 30, 34], [74, 84, 52], [96, 96, 100], [110, 40, 36]],
+            ),
             pants: pick_color(rng, &[[34, 36, 60], [40, 40, 44], [66, 70, 46], [80, 66, 50]]),
             skin: pick_color(rng, &[[224, 180, 150], [196, 150, 118], [150, 110, 84]]),
             hat: if rng.chance(0.6) {
-                Some(pick_color(rng, &[[30, 30, 30], [60, 70, 50], [120, 30, 30], [40, 40, 90]]))
+                Some(pick_color(
+                    rng,
+                    &[[30, 30, 30], [60, 70, 50], [120, 30, 30], [40, 40, 90]],
+                ))
             } else {
                 None
             },
@@ -298,8 +304,7 @@ impl Scav {
         let fov = if engaged { 110.0 } else { 65.0 };
         let max_range = if engaged { 120.0 } else { 80.0 };
         let in_view = dist < max_range && (angle < fov || dist < 5.0);
-        let visible =
-            in_view && (world.line_of_sight(eye, player.eye) || world.line_of_sight(eye, player.chest));
+        let visible = in_view && (world.line_of_sight(eye, player.eye) || world.line_of_sight(eye, player.chest));
         self.sees_player = visible;
         if visible {
             self.last_known = Some(player.feet);

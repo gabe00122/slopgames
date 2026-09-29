@@ -82,7 +82,6 @@ impl Rng {
         }
         weights.len() - 1
     }
-
 }
 
 /// Integer hash used for noise and procedural textures.

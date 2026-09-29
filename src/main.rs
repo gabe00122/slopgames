@@ -177,15 +177,14 @@ impl ApplicationHandler for App {
                 return;
             }
         };
-        let renderer =
-            match pollster::block_on(Renderer::new(window.clone(), event_loop.owned_display_handle())) {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Failed to initialise renderer: {e}");
-                    event_loop.exit();
-                    return;
-                }
-            };
+        let renderer = match pollster::block_on(Renderer::new(window.clone(), event_loop.owned_display_handle())) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("Failed to initialise renderer: {e}");
+                event_loop.exit();
+                return;
+            }
+        };
         let egui_ctx = egui::Context::default();
         ui::style::apply(&egui_ctx);
         let max_tex = renderer.device.limits().max_texture_dimension_2d as usize;
@@ -319,8 +318,7 @@ impl ApplicationHandler for App {
 }
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn,voxel_raid=info"))
-        .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn,voxel_raid=info")).init();
     let args = parse_args();
     let event_loop = match EventLoop::new() {
         Ok(el) => el,

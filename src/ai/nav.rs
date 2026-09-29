@@ -109,7 +109,9 @@ pub fn find_path(world: &World, start: Vec3, goal: Vec3, max_nodes: usize) -> Op
                     continue;
                 }
             }
-            let Some(n) = step_target(world, p, dx, dz) else { continue };
+            let Some(n) = step_target(world, p, dx, dz) else {
+                continue;
+            };
             if diag && n.y != p.y {
                 continue;
             }
@@ -166,6 +168,8 @@ mod tests {
         let path = find_path(&w, Vec3::new(3.5, 3.0, 3.5), Vec3::new(20.5, 4.0, 3.5), 5000).expect("path");
         let last = *path.last().unwrap();
         assert!((last - Vec3::new(20.5, 4.0, 3.5)).length() < 0.01);
-        assert!(path.iter().any(|p| (p.z - 20.5).abs() < 0.01 && (p.x - 10.5).abs() < 0.01));
+        assert!(path
+            .iter()
+            .any(|p| (p.z - 20.5).abs() < 0.01 && (p.x - 10.5).abs() < 0.01));
     }
 }

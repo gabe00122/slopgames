@@ -15,8 +15,7 @@ pub struct Hitbox {
     pub yaw: f32,
 }
 
-impl Hitbox {
-}
+impl Hitbox {}
 
 /// Local layout of a humanoid (feet at origin, facing -Z): (part, centre, half-extent).
 pub const HUMANOID_PARTS: [(BodyPart, [f32; 3], [f32; 3]); 7] = [
@@ -167,7 +166,11 @@ pub fn fire(
         let resist = h.block.info().pen_resist;
         let passes = power > resist;
         let point = origin + dir * h.t;
-        let block_dmg = if passes { def.block_damage * 0.6 } else { def.block_damage };
+        let block_dmg = if passes {
+            def.block_damage * 0.6
+        } else {
+            def.block_damage
+        };
         let destroyed = world.damage_block(h.pos, block_dmg);
         blocks.push(BlockImpact {
             pos: h.pos,
@@ -252,7 +255,15 @@ mod tests {
     fn headshot_detected() {
         let mut w = wall_world(Block::Air);
         let targets = target_at(14.5);
-        let out = fire(&mut w, Vec3::new(2.0, 4.64, 5.5), Vec3::X, AmmoType::Ps545, 100.0, &targets, None);
+        let out = fire(
+            &mut w,
+            Vec3::new(2.0, 4.64, 5.5),
+            Vec3::X,
+            AmmoType::Ps545,
+            100.0,
+            &targets,
+            None,
+        );
         let e = out.entity.expect("should hit");
         assert_eq!(e.part, BodyPart::Head);
     }
@@ -261,12 +272,28 @@ mod tests {
     fn ap_penetrates_brick_but_fmj_does_not() {
         let targets = target_at(14.5);
         let mut w = wall_world(Block::Brick);
-        let fmj = fire(&mut w, Vec3::new(2.0, 4.3, 5.5), Vec3::X, AmmoType::Ps545, 100.0, &targets, None);
+        let fmj = fire(
+            &mut w,
+            Vec3::new(2.0, 4.3, 5.5),
+            Vec3::X,
+            AmmoType::Ps545,
+            100.0,
+            &targets,
+            None,
+        );
         assert!(fmj.entity.is_none());
         assert!(!fmj.blocks[0].penetrated);
 
         let mut w = wall_world(Block::Brick);
-        let ap = fire(&mut w, Vec3::new(2.0, 4.3, 5.5), Vec3::X, AmmoType::Bs545, 100.0, &targets, None);
+        let ap = fire(
+            &mut w,
+            Vec3::new(2.0, 4.3, 5.5),
+            Vec3::X,
+            AmmoType::Bs545,
+            100.0,
+            &targets,
+            None,
+        );
         let e = ap.entity.expect("AP should pass through one brick");
         assert!(e.damage < AmmoType::Bs545.def().damage);
     }
@@ -275,13 +302,29 @@ mod tests {
     fn fmj_passes_planks_hp_does_not() {
         let targets = target_at(14.5);
         let mut w = wall_world(Block::Planks);
-        assert!(fire(&mut w, Vec3::new(2.0, 4.3, 5.5), Vec3::X, AmmoType::Ps545, 100.0, &targets, None)
-            .entity
-            .is_some());
+        assert!(fire(
+            &mut w,
+            Vec3::new(2.0, 4.3, 5.5),
+            Vec3::X,
+            AmmoType::Ps545,
+            100.0,
+            &targets,
+            None
+        )
+        .entity
+        .is_some());
         let mut w = wall_world(Block::Planks);
-        assert!(fire(&mut w, Vec3::new(2.0, 4.3, 5.5), Vec3::X, AmmoType::Hp545, 100.0, &targets, None)
-            .entity
-            .is_none());
+        assert!(fire(
+            &mut w,
+            Vec3::new(2.0, 4.3, 5.5),
+            Vec3::X,
+            AmmoType::Hp545,
+            100.0,
+            &targets,
+            None
+        )
+        .entity
+        .is_none());
     }
 
     #[test]
@@ -289,7 +332,15 @@ mod tests {
         let mut w = wall_world(Block::Planks);
         let mut destroyed = false;
         for _ in 0..20 {
-            let out = fire(&mut w, Vec3::new(2.0, 4.3, 5.5), Vec3::X, AmmoType::Hp545, 100.0, &[], None);
+            let out = fire(
+                &mut w,
+                Vec3::new(2.0, 4.3, 5.5),
+                Vec3::X,
+                AmmoType::Hp545,
+                100.0,
+                &[],
+                None,
+            );
             destroyed |= out.blocks.iter().any(|b| b.destroyed);
         }
         assert!(destroyed);

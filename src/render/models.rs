@@ -113,9 +113,9 @@ pub fn weapon_model_opts(mb: &mut MeshBuilder, w: &Weapon, m: Mat4, hide_stock: 
     if ml > 0.0 && (bl > 0.0 || w.receiver == ReceiverId::Vityaz) {
         let z0 = -0.43 - bl;
         let (thick, color) = match mz {
-            Some(AttachmentId::Pbs4Suppressor) | Some(AttachmentId::Pbs1Suppressor) | Some(AttachmentId::Suppressor9mm) => {
-                (0.05, [36, 36, 38, 255])
-            }
+            Some(AttachmentId::Pbs4Suppressor)
+            | Some(AttachmentId::Pbs1Suppressor)
+            | Some(AttachmentId::Suppressor9mm) => (0.05, [36, 36, 38, 255]),
             Some(AttachmentId::Dtk1Compensator) => (0.038, [40, 40, 42, 255]),
             _ => (0.032, METAL_LIGHT),
         };
@@ -131,9 +131,7 @@ pub fn weapon_model_opts(mb: &mut MeshBuilder, w: &Weapon, m: Mat4, hide_stock: 
     let stock = if hide_stock { None } else { w.attachment(Slot::Stock) };
     match stock {
         Some(AttachmentId::AkWoodStock) => cube_rx(mb, m, [0.0, -0.035, 0.27], [0.045, 0.085, 0.26], -0.12, WOOD),
-        Some(AttachmentId::Ak74PolymerStock) => {
-            cube_rx(mb, m, [0.0, -0.035, 0.27], [0.045, 0.085, 0.26], -0.12, PLUM)
-        }
+        Some(AttachmentId::Ak74PolymerStock) => cube_rx(mb, m, [0.0, -0.035, 0.27], [0.045, 0.085, 0.26], -0.12, PLUM),
         Some(AttachmentId::ZhukovStock) => {
             cube(mb, m, [0.0, -0.01, 0.22], [0.04, 0.04, 0.16], POLYMER);
             cube(mb, m, [0.0, -0.035, 0.33], [0.045, 0.1, 0.06], POLYMER);
@@ -160,7 +158,14 @@ pub fn weapon_model_opts(mb: &mut MeshBuilder, w: &Weapon, m: Mat4, hide_stock: 
                 _ => (0.17, POLYMER),
             };
             let curve = if is_ak { 0.38 } else { 0.1 };
-            cube_rx(mb, m, [0.0, -0.04 - len / 2.0, -0.12 - len * 0.2], [0.034, len, 0.07], curve, color);
+            cube_rx(
+                mb,
+                m,
+                [0.0, -0.04 - len / 2.0, -0.12 - len * 0.2],
+                [0.034, len, 0.07],
+                curve,
+                color,
+            );
         }
         None => {}
     }
@@ -197,7 +202,13 @@ fn pistol_model(mb: &mut MeshBuilder, w: &Weapon, m: Mat4) {
     cube(mb, m, [0.0, 0.043, -0.155], [0.006, 0.012, 0.008], METAL);
     cube(mb, m, [0.0, 0.043, 0.015], [0.02, 0.01, 0.008], METAL);
     if let Some(AttachmentId::Suppressor9mm) = w.attachment(Slot::Muzzle) {
-        cube(mb, m, [0.0, 0.02, -0.165 - 0.085], [0.036, 0.036, 0.17], [36, 36, 38, 255]);
+        cube(
+            mb,
+            m,
+            [0.0, 0.02, -0.165 - 0.085],
+            [0.036, 0.036, 0.17],
+            [36, 36, 38, 255],
+        );
     }
     if w.attachment(Slot::Sight).is_some() {
         cube(mb, m, [0.0, 0.048, -0.03], [0.024, 0.024, 0.03], METAL_LIGHT);
@@ -282,7 +293,8 @@ pub fn humanoid(mb: &mut MeshBuilder, pose: &HumanoidPose, look: &HumanoidLook, 
         mb.add_cube(m, tint(color, f), false);
     }
     // Face detail and headgear.
-    let face = base * Mat4::from_translation(Vec3::new(0.0, 1.66, -0.131)) * Mat4::from_scale(Vec3::new(0.16, 0.03, 0.01));
+    let face =
+        base * Mat4::from_translation(Vec3::new(0.0, 1.66, -0.131)) * Mat4::from_scale(Vec3::new(0.16, 0.03, 0.01));
     mb.add_cube(face, [30, 26, 24, 255], false);
     if look.helmet {
         let m = base * Mat4::from_translation(Vec3::new(0.0, 1.74, 0.0)) * Mat4::from_scale(Vec3::new(0.3, 0.14, 0.3));
@@ -359,7 +371,11 @@ pub fn viewmodel(mb: &mut MeshBuilder, w: &Weapon, p: &ViewmodelParams) {
     let glove = [52, 50, 44, 255];
     let sleeve = [72, 78, 58, 255];
     // Right hand on the pistol grip, forearm back to the bottom-right of the screen.
-    let grip = if pistol { Vec3::new(0.0, -0.07, 0.02) } else { Vec3::new(0.0, -0.085, 0.08) };
+    let grip = if pistol {
+        Vec3::new(0.0, -0.07, 0.02)
+    } else {
+        Vec3::new(0.0, -0.085, 0.08)
+    };
     mb.add_cube(
         m * Mat4::from_translation(grip + Vec3::new(0.012, 0.0, 0.0)) * Mat4::from_scale(Vec3::new(0.05, 0.075, 0.07)),
         glove,
@@ -368,7 +384,11 @@ pub fn viewmodel(mb: &mut MeshBuilder, w: &Weapon, p: &ViewmodelParams) {
     let rg = m.transform_point3(grip + Vec3::new(0.02, -0.03, 0.04));
     mb.add_beam(rg, rg + Vec3::new(0.12, -0.2, 0.3), 0.075, sleeve, false);
     // Left hand on the handguard (or supporting the pistol grip).
-    let support = if pistol { Vec3::new(-0.025, -0.085, 0.0) } else { Vec3::new(-0.012, -0.04, -0.33) };
+    let support = if pistol {
+        Vec3::new(-0.025, -0.085, 0.0)
+    } else {
+        Vec3::new(-0.012, -0.04, -0.33)
+    };
     mb.add_cube(
         m * Mat4::from_translation(support) * Mat4::from_scale(Vec3::new(0.06, 0.055, 0.1)),
         glove,

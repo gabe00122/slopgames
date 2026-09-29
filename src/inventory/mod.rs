@@ -143,7 +143,11 @@ pub struct Grid {
 
 impl Grid {
     pub fn new(w: u8, h: u8) -> Self {
-        Self { w, h, items: Vec::new() }
+        Self {
+            w,
+            h,
+            items: Vec::new(),
+        }
     }
 
     fn occupancy(&self, ignore: Option<u64>) -> Vec<bool> {
@@ -237,7 +241,12 @@ impl Grid {
         }
         match self.find_spot(item.size(), avoid) {
             Some((x, y, rot)) => {
-                self.items.push(Placed { item, x, y, rotated: rot });
+                self.items.push(Placed {
+                    item,
+                    x,
+                    y,
+                    rotated: rot,
+                });
                 Ok(())
             }
             None => Err(item),
@@ -265,7 +274,11 @@ impl Grid {
     }
 
     pub fn count_kind(&self, kind: ItemKind) -> u32 {
-        self.items.iter().filter(|p| p.item.kind == kind).map(|p| p.item.count).sum()
+        self.items
+            .iter()
+            .filter(|p| p.item.kind == kind)
+            .map(|p| p.item.count)
+            .sum()
     }
 
     /// Remove up to `n` units of a kind (from stacks or single items).
@@ -298,7 +311,11 @@ impl Grid {
         let mut items: Vec<Item> = self.items.drain(..).map(|p| p.item).collect();
         items.sort_by_key(|i| {
             let (w, h) = i.size();
-            (std::cmp::Reverse(w as u32 * h as u32), i.kind.category() as u8, i.name())
+            (
+                std::cmp::Reverse(w as u32 * h as u32),
+                i.kind.category() as u8,
+                i.name(),
+            )
         });
         let mut leftovers = Vec::new();
         for it in items {
@@ -308,7 +325,12 @@ impl Grid {
         }
         // Should never happen (same items fit before), but never lose items.
         for it in leftovers {
-            self.items.push(Placed { item: it, x: 0, y: 0, rotated: false });
+            self.items.push(Placed {
+                item: it,
+                x: 0,
+                y: 0,
+                rotated: false,
+            });
         }
     }
 }
@@ -562,8 +584,12 @@ pub fn starter_profile_items() -> (Grid, Equipment) {
     let mut stash = Grid::new(10, 30);
     let mut eq = Equipment::default();
 
-    eq.primary = Some(Item::with_weapon(Weapon::new(ReceiverId::Ak74n).loaded_with(AmmoType::Ps545, 30)));
-    eq.holster = Some(Item::with_weapon(Weapon::new(ReceiverId::Grach).loaded_with(AmmoType::Pst9, 17)));
+    eq.primary = Some(Item::with_weapon(
+        Weapon::new(ReceiverId::Ak74n).loaded_with(AmmoType::Ps545, 30),
+    ));
+    eq.holster = Some(Item::with_weapon(
+        Weapon::new(ReceiverId::Grach).loaded_with(AmmoType::Pst9, 17),
+    ));
     eq.helmet = Some(Item::new(ItemKind::Armor(ArmorKind::Kiver)));
     eq.armor = Some(Item::new(ItemKind::Armor(ArmorKind::Paca)));
     let mut rig = Item::new(ItemKind::Rig(RigKind::ScavVest));
@@ -613,7 +639,10 @@ mod tests {
     fn items_occupy_cells() {
         let mut g = Grid::new(4, 4);
         let ak = Item::new(ItemKind::Weapon(crate::weapons::ReceiverId::Ak74n)); // 5x2
-        assert!(g.clone().place(ak.clone(), 0, 0, false).is_err(), "5 wide cannot fit in 4");
+        assert!(
+            g.clone().place(ak.clone(), 0, 0, false).is_err(),
+            "5 wide cannot fit in 4"
+        );
         let mut tall = Grid::new(2, 5);
         assert!(tall.place(ak, 0, 0, true).is_ok(), "rotated 2x5 fits");
         let med = Item::new(ItemKind::Med(MedKind::Salewa)); // 1x2
@@ -659,11 +688,21 @@ mod tests {
     #[test]
     fn stash_parts_source() {
         let mut stash = Grid::new(4, 4);
-        stash.insert(Item::new(ItemKind::Attachment(AttachmentId::Ak74Mag45))).unwrap();
-        let mut w = Weapon::new(crate::weapons::ReceiverId::Ak74n);
-        let mut src = GridParts { grid: &mut stash, reserved: None };
-        crate::weapons::swap_attachment(&mut w, crate::weapons::Slot::Magazine, Some(AttachmentId::Ak74Mag45), &mut src)
+        stash
+            .insert(Item::new(ItemKind::Attachment(AttachmentId::Ak74Mag45)))
             .unwrap();
+        let mut w = Weapon::new(crate::weapons::ReceiverId::Ak74n);
+        let mut src = GridParts {
+            grid: &mut stash,
+            reserved: None,
+        };
+        crate::weapons::swap_attachment(
+            &mut w,
+            crate::weapons::Slot::Magazine,
+            Some(AttachmentId::Ak74Mag45),
+            &mut src,
+        )
+        .unwrap();
         assert_eq!(stash.count_kind(ItemKind::Attachment(AttachmentId::Ak74Mag30)), 1);
         assert_eq!(stash.count_kind(ItemKind::Attachment(AttachmentId::Ak74Mag45)), 0);
     }

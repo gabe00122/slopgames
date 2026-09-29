@@ -356,7 +356,13 @@ impl Gen {
                     }
                 }
             }
-            return Some(Lot { x0, z0, w, d, y0: level });
+            return Some(Lot {
+                x0,
+                z0,
+                w,
+                d,
+                y0: level,
+            });
         }
         None
     }
@@ -615,7 +621,9 @@ impl Gen {
         self.patrol(sx, y0 + 1, zc);
         self.patrol(x0 - 2, y0 + 1, zc);
         self.patrol(x1 + 2, y0 + 1, zc);
-        self.info.scav_spawns.push(Vec3::new(sx as f32 + 0.5, (y0 + 1) as f32, zc as f32 + 0.5));
+        self.info
+            .scav_spawns
+            .push(Vec3::new(sx as f32 + 0.5, (y0 + 1) as f32, zc as f32 + 0.5));
     }
 
     fn build_office(&mut self, lot: &Lot) {
@@ -653,14 +661,20 @@ impl Gen {
         self.patrol(x0 + 10, y0 + 1, (z0 + z1) / 2);
         self.patrol(x0 + 10, y0 + 6, (z0 + z1) / 2);
         self.patrol(x0 + 9, y0 + 1, z0 - 2);
-        self.info
-            .scav_spawns
-            .push(Vec3::new((x0 + 10) as f32 + 0.5, (y0 + 6) as f32, ((z0 + z1) / 2) as f32 + 0.5));
+        self.info.scav_spawns.push(Vec3::new(
+            (x0 + 10) as f32 + 0.5,
+            (y0 + 6) as f32,
+            ((z0 + z1) / 2) as f32 + 0.5,
+        ));
     }
 
     fn build_shipping_container(&mut self, lot: &Lot) {
         let (x0, z0, x1, z1, y0) = (lot.x0, lot.z0, lot.x1(), lot.z1(), lot.y0);
-        let mat = if self.rng.chance(0.7) { Block::RustMetal } else { Block::Metal };
+        let mat = if self.rng.chance(0.7) {
+            Block::RustMetal
+        } else {
+            Block::Metal
+        };
         self.fill(x0, y0, z0, x1, y0, z1, Block::Metal);
         self.fill(x0 + 1, y0 + 1, z0 + 1, x1 - 1, y0 + 3, z1 - 1, Block::Air);
         self.walls(x0, z0, x1, z1, y0 + 1, y0 + 3, mat);
@@ -713,14 +727,26 @@ impl Gen {
                     if !on_edge {
                         continue;
                     }
-                    let (x, z) = if dir_x { (cx + k * side, cz + t) } else { (cx + t, cz + k * side) };
+                    let (x, z) = if dir_x {
+                        (cx + k * side, cz + t)
+                    } else {
+                        (cx + t, cz + k * side)
+                    };
                     let g = self.ground(x, z);
                     self.fill(x, g + 1, z, x, g + 2, z, Block::Sandbag);
                 }
             }
-            let (ix, iz) = if dir_x { (cx + 5 * side, cz) } else { (cx, cz + 5 * side) };
+            let (ix, iz) = if dir_x {
+                (cx + 5 * side, cz)
+            } else {
+                (cx, cz + 5 * side)
+            };
             let g = self.ground(ix, iz);
-            let kind = if self.rng.chance(0.5) { ContainerKind::MedCase } else { ContainerKind::WoodenCrate };
+            let kind = if self.rng.chance(0.5) {
+                ContainerKind::MedCase
+            } else {
+                ContainerKind::WoodenCrate
+            };
             let (lx, lz) = if dir_x { (ix, iz + 2) } else { (ix + 2, iz) };
             let lg = self.ground(lx, lz);
             self.container(lx, lg + 1, lz, kind);
@@ -730,7 +756,11 @@ impl Gen {
                 .push(Vec3::new(ix as f32 + 0.5, (g + 1) as f32, iz as f32 + 0.5));
             // Concrete barrier half across the road.
             for t in 0..3 {
-                let (x, z) = if dir_x { (cx - side * t, cz + 6) } else { (cx + 6, cz - side * t) };
+                let (x, z) = if dir_x {
+                    (cx - side * t, cz + 6)
+                } else {
+                    (cx + 6, cz - side * t)
+                };
                 let g = self.ground(x, z);
                 self.set(x, g + 1, z, Block::Concrete);
             }

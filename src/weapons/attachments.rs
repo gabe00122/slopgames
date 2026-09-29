@@ -170,7 +170,12 @@ impl AttachmentId {
     pub fn def(self) -> &'static AttachmentDef {
         use AttachmentId::*;
         match self {
-            Ak74Barrel415 => &AttachmentDef { weight: 0.6, size: (3, 1), value: 6000, ..base!("AK-74 415mm barrel", Slot::Barrel, AK74) },
+            Ak74Barrel415 => &AttachmentDef {
+                weight: 0.6,
+                size: (3, 1),
+                value: 6000,
+                ..base!("AK-74 415mm barrel", Slot::Barrel, AK74)
+            },
             Ak74Barrel206 => &AttachmentDef {
                 spread: 0.45,
                 recoil: 0.1,
@@ -180,7 +185,12 @@ impl AttachmentId {
                 value: 9000,
                 ..base!("AK-74 206mm short barrel", Slot::Barrel, AK74)
             },
-            AkmBarrel415 => &AttachmentDef { weight: 0.65, size: (3, 1), value: 6000, ..base!("AKM 415mm barrel", Slot::Barrel, AKM) },
+            AkmBarrel415 => &AttachmentDef {
+                weight: 0.65,
+                size: (3, 1),
+                value: 6000,
+                ..base!("AKM 415mm barrel", Slot::Barrel, AKM)
+            },
             AkmBarrel520 => &AttachmentDef {
                 spread: -0.35,
                 recoil: -0.05,
@@ -190,15 +200,30 @@ impl AttachmentId {
                 value: 14000,
                 ..base!("RPK 520mm long barrel", Slot::Barrel, AKM)
             },
-            Ak74Brake => &AttachmentDef { recoil: -0.1, ergo: -1.0, value: 2500, ..base!("AK-74 muzzle brake", Slot::Muzzle, AK74) },
-            AkmSlantBrake => &AttachmentDef { recoil: -0.08, ergo: -1.0, value: 2500, ..base!("AKM slant brake", Slot::Muzzle, AKM) },
+            Ak74Brake => &AttachmentDef {
+                recoil: -0.1,
+                ergo: -1.0,
+                value: 2500,
+                ..base!("AK-74 muzzle brake", Slot::Muzzle, AK74)
+            },
+            AkmSlantBrake => &AttachmentDef {
+                recoil: -0.08,
+                ergo: -1.0,
+                value: 2500,
+                ..base!("AKM slant brake", Slot::Muzzle, AKM)
+            },
             Dtk1Compensator => &AttachmentDef {
                 recoil: -0.18,
                 ergo: -3.0,
                 value: 12000,
                 ..base!("Zenit DTK-1 compensator", Slot::Muzzle, AK)
             },
-            Pp19Brake => &AttachmentDef { recoil: -0.07, ergo: -1.0, value: 2500, ..base!("PP-19 muzzle brake", Slot::Muzzle, PP19) },
+            Pp19Brake => &AttachmentDef {
+                recoil: -0.07,
+                ergo: -1.0,
+                value: 2500,
+                ..base!("PP-19 muzzle brake", Slot::Muzzle, PP19)
+            },
             Pbs4Suppressor => &AttachmentDef {
                 recoil: -0.12,
                 ergo: -8.0,
@@ -293,7 +318,11 @@ impl AttachmentId {
                 value: 21000,
                 ..base!("PSO-1 4x scope", Slot::Sight, AK)
             },
-            GrachMag17 => &AttachmentDef { mag_size: 17, value: 1500, ..base!("Grach 17-round magazine", Slot::Magazine, PISTOL) },
+            GrachMag17 => &AttachmentDef {
+                mag_size: 17,
+                value: 1500,
+                ..base!("Grach 17-round magazine", Slot::Magazine, PISTOL)
+            },
             PistolMag33 => &AttachmentDef {
                 mag_size: 33,
                 ergo: -4.0,
@@ -310,8 +339,18 @@ impl AttachmentId {
                 value: 2000,
                 ..base!("PP-19 20-round magazine", Slot::Magazine, PP19)
             },
-            Pp19Mag30 => &AttachmentDef { mag_size: 30, size: (1, 2), value: 3000, ..base!("PP-19 30-round magazine", Slot::Magazine, PP19) },
-            Ak74Mag30 => &AttachmentDef { mag_size: 30, size: (1, 2), value: 3000, ..base!("AK-74 30-round magazine", Slot::Magazine, AK74) },
+            Pp19Mag30 => &AttachmentDef {
+                mag_size: 30,
+                size: (1, 2),
+                value: 3000,
+                ..base!("PP-19 30-round magazine", Slot::Magazine, PP19)
+            },
+            Ak74Mag30 => &AttachmentDef {
+                mag_size: 30,
+                size: (1, 2),
+                value: 3000,
+                ..base!("AK-74 30-round magazine", Slot::Magazine, AK74)
+            },
             Ak74Mag45 => &AttachmentDef {
                 mag_size: 45,
                 ergo: -5.0,
@@ -329,7 +368,12 @@ impl AttachmentId {
                 value: 30000,
                 ..base!("RPK-16 95-round drum", Slot::Magazine, AK74)
             },
-            AkmMag30 => &AttachmentDef { mag_size: 30, size: (1, 2), value: 3000, ..base!("AKM 30-round magazine", Slot::Magazine, AKM) },
+            AkmMag30 => &AttachmentDef {
+                mag_size: 30,
+                size: (1, 2),
+                value: 3000,
+                ..base!("AKM 30-round magazine", Slot::Magazine, AKM)
+            },
             AkmMag40 => &AttachmentDef {
                 mag_size: 40,
                 ergo: -4.0,
@@ -347,9 +391,24 @@ impl AttachmentId {
                 value: 26000,
                 ..base!("RPK 75-round drum", Slot::Magazine, AKM)
             },
-            Rk2Grip => &AttachmentDef { recoil: -0.04, ergo: 4.0, value: 4000, ..base!("Zenit RK-2 foregrip", Slot::Grip, RIFLES) },
-            Rk6Grip => &AttachmentDef { recoil: -0.07, ergo: 2.0, value: 6000, ..base!("Zenit RK-6 foregrip", Slot::Grip, RIFLES) },
-            AfgGrip => &AttachmentDef { recoil: -0.03, ergo: 7.0, value: 8000, ..base!("Magpul AFG grip", Slot::Grip, RIFLES) },
+            Rk2Grip => &AttachmentDef {
+                recoil: -0.04,
+                ergo: 4.0,
+                value: 4000,
+                ..base!("Zenit RK-2 foregrip", Slot::Grip, RIFLES)
+            },
+            Rk6Grip => &AttachmentDef {
+                recoil: -0.07,
+                ergo: 2.0,
+                value: 6000,
+                ..base!("Zenit RK-6 foregrip", Slot::Grip, RIFLES)
+            },
+            AfgGrip => &AttachmentDef {
+                recoil: -0.03,
+                ergo: 7.0,
+                value: 8000,
+                ..base!("Magpul AFG grip", Slot::Grip, RIFLES)
+            },
         }
     }
 

@@ -18,9 +18,9 @@ pub fn draw_hud(ui: &mut egui::Ui, session: &HideoutSession, state: &HideoutStat
     if !overlay_open {
         draw_crosshair(&p, center, 3.0, Color32::from_rgba_unmultiplied(230, 230, 220, 200));
         let prompt = match session.interaction() {
-            Some(HideoutInteract::Stash) => Some("[E] Open stash".to_string()),
+            Some(HideoutInteract::Stash) => Some("[E/F] Open stash".to_string()),
             Some(HideoutInteract::Station(s)) => Some(format!(
-                "[E] Use {} (level {}/{})",
+                "[E/F] Use {} (level {}/{})",
                 s.name(),
                 state.level(s),
                 s.max_level()
@@ -28,7 +28,14 @@ pub fn draw_hud(ui: &mut egui::Ui, session: &HideoutSession, state: &HideoutStat
             None => None,
         };
         if let Some(t) = prompt {
-            text(&p, center + egui::vec2(0.0, 44.0), Align2::CENTER_CENTER, t, 16.0, Color32::WHITE);
+            text(
+                &p,
+                center + egui::vec2(0.0, 44.0),
+                Align2::CENTER_CENTER,
+                t,
+                16.0,
+                Color32::WHITE,
+            );
         }
     }
 
@@ -38,7 +45,10 @@ pub fn draw_hud(ui: &mut egui::Ui, session: &HideoutSession, state: &HideoutStat
     let total = slot * blocks.len() as f32;
     let origin = Pos2::new(center.x - total / 2.0, screen.bottom() - slot - 26.0);
     for (i, b) in blocks.iter().enumerate() {
-        let r = Rect::from_min_size(origin + egui::vec2(i as f32 * slot, 0.0), egui::vec2(slot - 4.0, slot - 4.0));
+        let r = Rect::from_min_size(
+            origin + egui::vec2(i as f32 * slot, 0.0),
+            egui::vec2(slot - 4.0, slot - 4.0),
+        );
         p.rect_filled(r, 3.0, Color32::from_black_alpha(160));
         let c = crate::render::atlas::tile_color(b.info().tiles[1]);
         p.rect_filled(r.shrink(8.0), 2.0, Color32::from_rgb(c[0], c[1], c[2]));
@@ -48,30 +58,63 @@ pub fn draw_hud(ui: &mut egui::Ui, session: &HideoutSession, state: &HideoutStat
             11 => "=".to_string(),
             n => (n + 1).to_string(),
         };
-        p.text(r.left_top() + egui::vec2(3.0, 1.0), Align2::LEFT_TOP, key, FontId::monospace(10.0), Color32::from_white_alpha(200));
+        p.text(
+            r.left_top() + egui::vec2(3.0, 1.0),
+            Align2::LEFT_TOP,
+            key,
+            FontId::monospace(10.0),
+            Color32::from_white_alpha(200),
+        );
         if i == session.selected {
             p.rect_stroke(r, 3.0, Stroke::new(2.5, style::ACCENT), StrokeKind::Outside);
         }
     }
-    text(&p, origin + egui::vec2(total / 2.0, -10.0),
+    text(
+        &p,
+        origin + egui::vec2(total / 2.0, -10.0),
         Align2::CENTER_BOTTOM,
-        session.selected_block().name(), 15.0, style::ACCENT,);
-    text(&p, Pos2::new(center.x, screen.bottom() - 8.0),
+        session.selected_block().name(),
+        15.0,
+        style::ACCENT,
+    );
+    text(
+        &p,
+        Pos2::new(center.x, screen.bottom() - 8.0),
         Align2::CENTER_BOTTOM,
-        "LMB remove · RMB place · 1-0/scroll select block · E use · Tab stash · Esc menu", 11.5, Color32::from_white_alpha(130),);
+        "LMB remove · RMB place · 1-0/scroll select block · E/F use · Tab stash · Esc menu",
+        11.5,
+        Color32::from_white_alpha(130),
+    );
 
     // Station overview.
-    text(&p, Pos2::new(16.0, 14.0), Align2::LEFT_TOP, "HIDEOUT", 18.0, style::ACCENT);
+    text(
+        &p,
+        Pos2::new(16.0, 14.0),
+        Align2::LEFT_TOP,
+        "HIDEOUT",
+        18.0,
+        style::ACCENT,
+    );
     for (i, s) in StationKind::ALL.iter().enumerate() {
-        text(&p, Pos2::new(16.0, 40.0 + i as f32 * 18.0),
+        text(
+            &p,
+            Pos2::new(16.0, 40.0 + i as f32 * 18.0),
             Align2::LEFT_TOP,
-            format!("{}  Lv {}/{}", s.name(), state.level(*s), s.max_level()), 13.5, style::TEXT_DIM,);
+            format!("{}  Lv {}/{}", s.name(), state.level(*s), s.max_level()),
+            13.5,
+            style::TEXT_DIM,
+        );
     }
     for (i, (m, ttl)) in session.messages.iter().enumerate() {
         let a = (ttl.min(1.0) * 255.0) as u8;
-        text(&p, Pos2::new(16.0, screen.height() * 0.35 + i as f32 * 20.0),
+        text(
+            &p,
+            Pos2::new(16.0, screen.height() * 0.35 + i as f32 * 20.0),
             Align2::LEFT_TOP,
-            m, 14.0, Color32::from_rgba_unmultiplied(230, 220, 180, a),);
+            m,
+            14.0,
+            Color32::from_rgba_unmultiplied(230, 220, 180, a),
+        );
     }
 }
 
@@ -86,7 +129,12 @@ fn cost_rows(ui: &mut egui::Ui, stash: &Grid, cost: &[(ItemKind, u32)]) {
         let h = have(stash, *k);
         let ok = h >= *n;
         let text = if *k == ItemKind::Roubles {
-            format!("{}   {} / {}", k.name(), super::inventory::value_label(h as u64), super::inventory::value_label(*n as u64))
+            format!(
+                "{}   {} / {}",
+                k.name(),
+                super::inventory::value_label(h as u64),
+                super::inventory::value_label(*n as u64)
+            )
         } else {
             format!("{}   {} / {}", k.name(), h, n)
         };
@@ -124,7 +172,11 @@ pub fn station_window(
                         .map(|r| r.name())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    ui.label(RichText::new(format!("Unlocks: {unlocks}")).size(12.0).color(style::TEXT_DIM));
+                    ui.label(
+                        RichText::new(format!("Unlocks: {unlocks}"))
+                            .size(12.0)
+                            .color(style::TEXT_DIM),
+                    );
                     let afford = can_afford(stash, &cost);
                     if ui
                         .add_enabled(afford, egui::Button::new(format!("Upgrade to level {}", level + 1)))

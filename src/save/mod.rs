@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn raid_results_update_profile() {
-        use crate::inventory::{GridRef, Item, ItemKind, BarterKind};
+        use crate::inventory::{BarterKind, GridRef, Item, ItemKind};
         let mut p = Profile::new_player();
         let mut eq = std::mem::take(&mut p.equipment);
         eq.grid_mut(GridRef::Backpack)
@@ -174,7 +174,10 @@ mod tests {
         assert_eq!(p.stats.kills, 2);
         assert_eq!(p.stats.loot_value, 300);
         assert_eq!(
-            p.equipment.grid(GridRef::Backpack).unwrap().count_kind(ItemKind::Barter(BarterKind::Bitcoin)),
+            p.equipment
+                .grid(GridRef::Backpack)
+                .unwrap()
+                .count_kind(ItemKind::Barter(BarterKind::Bitcoin)),
             1
         );
 

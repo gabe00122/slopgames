@@ -138,14 +138,7 @@ pub struct BlockInfo {
 
 const INF: f32 = f32::INFINITY;
 
-const fn info(
-    name: &'static str,
-    solid: bool,
-    opaque: bool,
-    hp: f32,
-    pen_resist: f32,
-    tiles: [Tile; 3],
-) -> BlockInfo {
+const fn info(name: &'static str, solid: bool, opaque: bool, hp: f32, pen_resist: f32, tiles: [Tile; 3]) -> BlockInfo {
     BlockInfo {
         name,
         solid,
@@ -165,7 +158,14 @@ pub const BLOCK_COUNT: usize = Block::Generator as usize + 1;
 
 static BLOCK_INFO: [BlockInfo; BLOCK_COUNT] = [
     info("Air", false, false, 0.0, 0.0, all(Tile::White)),
-    info("Grass", true, true, 70.0, 30.0, [Tile::GrassTop, Tile::GrassSide, Tile::Dirt]),
+    info(
+        "Grass",
+        true,
+        true,
+        70.0,
+        30.0,
+        [Tile::GrassTop, Tile::GrassSide, Tile::Dirt],
+    ),
     info("Dirt", true, true, 70.0, 30.0, all(Tile::Dirt)),
     info("Stone", true, true, 400.0, 90.0, all(Tile::Stone)),
     info("Sand", true, true, 50.0, 35.0, all(Tile::Sand)),
@@ -174,7 +174,14 @@ static BLOCK_INFO: [BlockInfo; BLOCK_COUNT] = [
     info("Concrete", true, true, 450.0, 90.0, all(Tile::Concrete)),
     info("Brick", true, true, 180.0, 45.0, all(Tile::Brick)),
     info("Wood Planks", true, true, 60.0, 10.0, all(Tile::Planks)),
-    info("Log", true, true, 100.0, 25.0, [Tile::LogTop, Tile::LogSide, Tile::LogTop]),
+    info(
+        "Log",
+        true,
+        true,
+        100.0,
+        25.0,
+        [Tile::LogTop, Tile::LogSide, Tile::LogTop],
+    ),
     info("Leaves", true, false, 8.0, 2.0, all(Tile::Leaves)),
     info("Sheet Metal", true, true, 220.0, 30.0, all(Tile::Metal)),
     info("Glass", true, false, 5.0, 1.0, all(Tile::Glass)),
@@ -182,13 +189,62 @@ static BLOCK_INFO: [BlockInfo; BLOCK_COUNT] = [
     info("Bedrock", true, true, INF, 999.0, all(Tile::Bedrock)),
     info("Floor Tile", true, true, 150.0, 50.0, all(Tile::FloorTile)),
     info("Rusted Metal", true, true, 150.0, 28.0, all(Tile::RustMetal)),
-    info("Wooden Crate", true, true, INF, 999.0, [Tile::CrateTop, Tile::CrateSide, Tile::CrateTop]),
-    info("Weapon Box", true, true, INF, 999.0, [Tile::WeaponBoxTop, Tile::WeaponBoxSide, Tile::WeaponBoxSide]),
-    info("Medcase", true, true, INF, 999.0, [Tile::MedCaseTop, Tile::MedCaseSide, Tile::MedCaseSide]),
-    info("Filing Cabinet", true, true, INF, 999.0, [Tile::CabinetSide, Tile::CabinetSide, Tile::CabinetSide]),
-    info("Workbench", true, true, INF, 999.0, [Tile::WorkbenchTop, Tile::WorkbenchSide, Tile::WorkbenchSide]),
-    info("Ammo Press", true, true, INF, 999.0, [Tile::AmmoPressTop, Tile::AmmoPressSide, Tile::AmmoPressSide]),
-    info("Medstation", true, true, INF, 999.0, [Tile::MedstationTop, Tile::MedstationSide, Tile::MedstationSide]),
+    info(
+        "Wooden Crate",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::CrateTop, Tile::CrateSide, Tile::CrateTop],
+    ),
+    info(
+        "Weapon Box",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::WeaponBoxTop, Tile::WeaponBoxSide, Tile::WeaponBoxSide],
+    ),
+    info(
+        "Medcase",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::MedCaseTop, Tile::MedCaseSide, Tile::MedCaseSide],
+    ),
+    info(
+        "Filing Cabinet",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::CabinetSide, Tile::CabinetSide, Tile::CabinetSide],
+    ),
+    info(
+        "Workbench",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::WorkbenchTop, Tile::WorkbenchSide, Tile::WorkbenchSide],
+    ),
+    info(
+        "Ammo Press",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::AmmoPressTop, Tile::AmmoPressSide, Tile::AmmoPressSide],
+    ),
+    info(
+        "Medstation",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::MedstationTop, Tile::MedstationSide, Tile::MedstationSide],
+    ),
     BlockInfo {
         name: "Lamp",
         solid: true,
@@ -199,10 +255,31 @@ static BLOCK_INFO: [BlockInfo; BLOCK_COUNT] = [
         emissive: true,
     },
     info("Plaster Wall", true, true, 100.0, 20.0, all(Tile::Plaster)),
-    info("Stash", true, true, INF, 999.0, [Tile::StashTop, Tile::StashSide, Tile::StashSide]),
-    info("Oil Barrel", true, true, 120.0, 35.0, [Tile::BarrelTop, Tile::BarrelSide, Tile::BarrelTop]),
+    info(
+        "Stash",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::StashTop, Tile::StashSide, Tile::StashSide],
+    ),
+    info(
+        "Oil Barrel",
+        true,
+        true,
+        120.0,
+        35.0,
+        [Tile::BarrelTop, Tile::BarrelSide, Tile::BarrelTop],
+    ),
     info("Road Marking", true, true, 300.0, 80.0, all(Tile::AsphaltLine)),
-    info("Generator", true, true, INF, 999.0, [Tile::GeneratorTop, Tile::GeneratorSide, Tile::GeneratorSide]),
+    info(
+        "Generator",
+        true,
+        true,
+        INF,
+        999.0,
+        [Tile::GeneratorTop, Tile::GeneratorSide, Tile::GeneratorSide],
+    ),
 ];
 
 static ALL_BLOCKS: [Block; BLOCK_COUNT] = [

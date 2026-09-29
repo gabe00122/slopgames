@@ -93,7 +93,11 @@ pub fn generate(state: &HideoutState) -> World {
     );
     // Pillars.
     for (x, z) in [(22, 22), (41, 22), (22, 41), (41, 41)] {
-        w.fill_gen(IVec3::new(x, HALL_MIN.y, z), IVec3::new(x, HALL_MAX.y, z), Block::Concrete);
+        w.fill_gen(
+            IVec3::new(x, HALL_MIN.y, z),
+            IVec3::new(x, HALL_MAX.y, z),
+            Block::Concrete,
+        );
     }
     // Ceiling lamps.
     let mut x = HALL_MIN.x + 3;
@@ -220,7 +224,9 @@ impl HideoutSession {
     pub fn interaction(&self) -> Option<HideoutInteract> {
         let hit = self
             .world
-            .raycast(self.player.eye_pos(), self.player.look_dir(), INTERACT_REACH, |b| !b.is_air())?;
+            .raycast(self.player.eye_pos(), self.player.look_dir(), INTERACT_REACH, |b| {
+                !b.is_air()
+            })?;
         if hit.block == Block::StashBox {
             return Some(HideoutInteract::Stash);
         }
@@ -307,7 +313,11 @@ impl HideoutSession {
                 self.build_cooldown = 0.0;
             }
         }
-        let mv = if accept { gather_move_input(input) } else { Default::default() };
+        let mv = if accept {
+            gather_move_input(input)
+        } else {
+            Default::default()
+        };
         self.player.update(&self.world, &mv, dt);
     }
 }
@@ -326,7 +336,10 @@ mod tests {
         }
         assert_eq!(w.get(stash_pos()), Block::StashBox);
         // Level-3 workbench decor.
-        assert_eq!(w.get(station_pos(StationKind::Workbench) + IVec3::new(0, 2, 0)), Block::Lamp);
+        assert_eq!(
+            w.get(station_pos(StationKind::Workbench) + IVec3::new(0, 2, 0)),
+            Block::Lamp
+        );
         let s = HideoutSession::new(&state);
         let p = s.player.pos.floor().as_ivec3();
         assert!(w.get(p).is_air() && w.get(p - IVec3::Y).is_solid());

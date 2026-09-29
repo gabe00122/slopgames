@@ -20,7 +20,11 @@ fn random_barter(rng: &mut Rng, rare: bool) -> Item {
     let weights: Vec<u32> = BarterKind::ALL
         .iter()
         .map(|b| match b {
-            BarterKind::Screws | BarterKind::Bolts | BarterKind::Nuts | BarterKind::MetalScrap | BarterKind::Matches => 10,
+            BarterKind::Screws
+            | BarterKind::Bolts
+            | BarterKind::Nuts
+            | BarterKind::MetalScrap
+            | BarterKind::Matches => 10,
             BarterKind::DuctTape | BarterKind::Wires => 7,
             BarterKind::GunpowderKite | BarterKind::Battery => 4,
             BarterKind::WeaponParts | BarterKind::GunpowderEagle | BarterKind::CircuitBoard => {
@@ -49,7 +53,11 @@ fn random_barter(rng: &mut Rng, rare: bool) -> Item {
         .collect();
     let b = BarterKind::ALL[rng.weighted(&weights)];
     let kind = ItemKind::Barter(b);
-    let n = if kind.max_stack() > 1 { rng.range_i32(1, 3) as u32 } else { 1 };
+    let n = if kind.max_stack() > 1 {
+        rng.range_i32(1, 3) as u32
+    } else {
+        1
+    };
     Item::stack(kind, n)
 }
 
@@ -140,7 +148,11 @@ pub fn container_loot(kind: ContainerKind, rng: &mut Rng) -> Grid {
             }
             if rng.chance(0.35) {
                 items.push(Item::stack(
-                    ItemKind::Barter(if rng.chance(0.5) { BarterKind::GunpowderKite } else { BarterKind::GunpowderEagle }),
+                    ItemKind::Barter(if rng.chance(0.5) {
+                        BarterKind::GunpowderKite
+                    } else {
+                        BarterKind::GunpowderEagle
+                    }),
                     rng.range_i32(1, 2) as u32,
                 ));
             }
@@ -159,7 +171,10 @@ pub fn container_loot(kind: ContainerKind, rng: &mut Rng) -> Grid {
             }
             for _ in 0..rng.range_i32(1, 3) {
                 let mut b = random_barter(rng, true);
-                if matches!(b.kind, ItemKind::Barter(BarterKind::FuelCanister) | ItemKind::Barter(BarterKind::Toolset)) {
+                if matches!(
+                    b.kind,
+                    ItemKind::Barter(BarterKind::FuelCanister) | ItemKind::Barter(BarterKind::Toolset)
+                ) {
                     b = Item::new(ItemKind::Barter(BarterKind::CircuitBoard));
                 }
                 items.push(b);
@@ -188,7 +203,11 @@ pub fn scav_body_loot(scav: &Scav, rng: &mut Rng) -> Grid {
         items.push(Item::new(ItemKind::Rig(RigKind::ScavVest)));
     }
     if rng.chance(0.2) {
-        let bp = if rng.chance(0.8) { BackpackKind::ScavBackpack } else { BackpackKind::Pilgrim };
+        let bp = if rng.chance(0.8) {
+            BackpackKind::ScavBackpack
+        } else {
+            BackpackKind::Pilgrim
+        };
         let mut b = Item::new(ItemKind::Backpack(bp));
         if let Some(g) = b.contents.as_mut() {
             for _ in 0..rng.range_i32(1, 3) {

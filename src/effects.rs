@@ -34,7 +34,11 @@ impl Effects {
     pub fn debris(&mut self, pos: Vec3, normal: Vec3, color: [u8; 4], count: usize, rng: &mut Rng) {
         for _ in 0..count {
             let v = normal * rng.range_f32(1.0, 3.5)
-                + Vec3::new(rng.range_f32(-1.5, 1.5), rng.range_f32(0.5, 3.0), rng.range_f32(-1.5, 1.5));
+                + Vec3::new(
+                    rng.range_f32(-1.5, 1.5),
+                    rng.range_f32(0.5, 3.0),
+                    rng.range_f32(-1.5, 1.5),
+                );
             let shade = rng.range_f32(0.75, 1.1);
             let c = [
                 (color[0] as f32 * shade).min(255.0) as u8,
@@ -59,7 +63,11 @@ impl Effects {
     /// Chunks flying off a destroyed block.
     pub fn block_break(&mut self, center: Vec3, color: [u8; 4], rng: &mut Rng) {
         for _ in 0..14 {
-            let off = Vec3::new(rng.range_f32(-0.4, 0.4), rng.range_f32(-0.4, 0.4), rng.range_f32(-0.4, 0.4));
+            let off = Vec3::new(
+                rng.range_f32(-0.4, 0.4),
+                rng.range_f32(-0.4, 0.4),
+                rng.range_f32(-0.4, 0.4),
+            );
             let life = rng.range_f32(0.6, 1.3);
             self.particles.push(Particle {
                 pos: center + off,
@@ -77,7 +85,11 @@ impl Effects {
     pub fn blood(&mut self, pos: Vec3, dir: Vec3, rng: &mut Rng) {
         for _ in 0..8 {
             let v = dir * rng.range_f32(0.5, 2.5)
-                + Vec3::new(rng.range_f32(-1.0, 1.0), rng.range_f32(-0.5, 1.5), rng.range_f32(-1.0, 1.0));
+                + Vec3::new(
+                    rng.range_f32(-1.0, 1.0),
+                    rng.range_f32(-0.5, 1.5),
+                    rng.range_f32(-1.0, 1.0),
+                );
             let life = rng.range_f32(0.3, 0.6);
             self.particles.push(Particle {
                 pos,
@@ -95,7 +107,11 @@ impl Effects {
     pub fn sparks(&mut self, pos: Vec3, normal: Vec3, rng: &mut Rng) {
         for _ in 0..4 {
             let v = normal * rng.range_f32(2.0, 5.0)
-                + Vec3::new(rng.range_f32(-2.0, 2.0), rng.range_f32(-1.0, 2.0), rng.range_f32(-2.0, 2.0));
+                + Vec3::new(
+                    rng.range_f32(-2.0, 2.0),
+                    rng.range_f32(-1.0, 2.0),
+                    rng.range_f32(-2.0, 2.0),
+                );
             self.particles.push(Particle {
                 pos,
                 vel: v,

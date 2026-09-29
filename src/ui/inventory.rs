@@ -124,7 +124,16 @@ impl InvCtx<'_> {
                 item
             }
         };
-        self.insert_anywhere(item, &[GridRef::Stash, GridRef::Backpack, GridRef::Rig, GridRef::Pockets, GridRef::Loot])
+        self.insert_anywhere(
+            item,
+            &[
+                GridRef::Stash,
+                GridRef::Backpack,
+                GridRef::Rig,
+                GridRef::Pockets,
+                GridRef::Loot,
+            ],
+        )
     }
 
     fn insert_anywhere(&mut self, mut item: Item, order: &[GridRef]) -> Result<(), Item> {
@@ -159,14 +168,29 @@ impl InvCtx<'_> {
 
     fn return_ammo(&mut self, a: AmmoType, mut n: u32) -> bool {
         let order: &[GridRef] = if self.stash.is_some() {
-            &[GridRef::Stash, GridRef::Rig, GridRef::Pockets, GridRef::Pouch, GridRef::Backpack]
+            &[
+                GridRef::Stash,
+                GridRef::Rig,
+                GridRef::Pockets,
+                GridRef::Pouch,
+                GridRef::Backpack,
+            ]
         } else {
-            &[GridRef::Rig, GridRef::Pockets, GridRef::Pouch, GridRef::Backpack, GridRef::Loot]
+            &[
+                GridRef::Rig,
+                GridRef::Pockets,
+                GridRef::Pouch,
+                GridRef::Backpack,
+                GridRef::Loot,
+            ]
         };
         while n > 0 {
             let chunk = n.min(60);
             n -= chunk;
-            if self.insert_anywhere(Item::stack(ItemKind::Ammo(a), chunk), order).is_err() {
+            if self
+                .insert_anywhere(Item::stack(ItemKind::Ammo(a), chunk), order)
+                .is_err()
+            {
                 return false;
             }
         }
@@ -242,7 +266,10 @@ fn paint_item(p: &egui::Painter, rect: Rect, item: &Item, hovered: bool, alpha: 
     }
     if let (ItemKind::Armor(a), Some(d)) = (item.kind, item.durability) {
         let frac = (d / a.def().max_durability).clamp(0.0, 1.0);
-        let bar = Rect::from_min_size(rect.left_bottom() + egui::vec2(3.0, -16.0), egui::vec2((rect.width() - 6.0) * frac, 3.0));
+        let bar = Rect::from_min_size(
+            rect.left_bottom() + egui::vec2(3.0, -16.0),
+            egui::vec2((rect.width() - 6.0) * frac, 3.0),
+        );
         p.rect_filled(bar, 1.0, style::hp_color(frac));
     }
 }
@@ -256,7 +283,11 @@ fn tooltip(ui: &mut egui::Ui, item: &Item) {
             "Ergonomics {:.0} · recoil {:.2}°/{:.2}° · {}x zoom",
             s.ergonomics, s.vertical_recoil, s.horizontal_recoil, s.zoom
         ));
-        let loaded = w.loaded.filter(|_| w.rounds > 0).map(|a| a.def().name).unwrap_or("empty");
+        let loaded = w
+            .loaded
+            .filter(|_| w.rounds > 0)
+            .map(|a| a.def().name)
+            .unwrap_or("empty");
         ui.label(format!("Magazine: {}/{} ({})", w.rounds, w.capacity(), loaded));
         if !s.operable {
             ui.label(RichText::new("Inoperable: missing barrel").color(style::BAD));
@@ -363,7 +394,11 @@ impl InventoryUi {
                     chosen = Some(MenuAction::Equip);
                 }
             }
-            let discard = if ctx.loot.is_some() { "Drop into container" } else { "Discard" };
+            let discard = if ctx.loot.is_some() {
+                "Drop into container"
+            } else {
+                "Discard"
+            };
             if ui.button(RichText::new(discard).color(style::BAD)).clicked() {
                 chosen = Some(MenuAction::Discard);
             }
@@ -385,8 +420,16 @@ impl InventoryUi {
         painter.rect_filled(rect, 2.0, Color32::from_rgb(16, 18, 17));
         for y in 0..grid.h {
             for x in 0..grid.w {
-                let c = Rect::from_min_size(rect.min + egui::vec2(x as f32 * CELL, y as f32 * CELL), Vec2::splat(CELL));
-                painter.rect_stroke(c, 0.0, Stroke::new(1.0, Color32::from_rgb(40, 43, 40)), StrokeKind::Inside);
+                let c = Rect::from_min_size(
+                    rect.min + egui::vec2(x as f32 * CELL, y as f32 * CELL),
+                    Vec2::splat(CELL),
+                );
+                painter.rect_stroke(
+                    c,
+                    0.0,
+                    Stroke::new(1.0, Color32::from_rgb(40, 43, 40)),
+                    StrokeKind::Inside,
+                );
             }
         }
         self.frame.grid_rects.push((g, rect));
@@ -442,7 +485,13 @@ impl InventoryUi {
                     self.interactions(ui, resp, Origin::Slot(s), item, ctx);
                 }
                 None => {
-                    painter.text(rect.center(), Align2::CENTER_CENTER, "empty", FontId::proportional(12.0), Color32::from_rgb(80, 80, 74));
+                    painter.text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        "empty",
+                        FontId::proportional(12.0),
+                        Color32::from_rgb(80, 80, 74),
+                    );
                 }
             }
         });
@@ -518,7 +567,13 @@ impl InventoryUi {
                 break;
             }
         }
-        paint_item(&painter, Rect::from_min_size(top_left, size_px).shrink(1.5), &d.item, true, 0.85);
+        paint_item(
+            &painter,
+            Rect::from_min_size(top_left, size_px).shrink(1.5),
+            &d.item,
+            true,
+            0.85,
+        );
 
         if !released {
             return;
@@ -551,7 +606,12 @@ impl InventoryUi {
 
         // Grids.
         if let Some((g, cx, cy, ok)) = target {
-            let rect = frame.grid_rects.iter().find(|(gg, _)| *gg == g).map(|(_, r)| *r).unwrap_or(Rect::NOTHING);
+            let rect = frame
+                .grid_rects
+                .iter()
+                .find(|(gg, _)| *gg == g)
+                .map(|(_, r)| *r)
+                .unwrap_or(Rect::NOTHING);
             let under = ((pointer - rect.min) / CELL).floor();
             if let Some(grid) = ctx.grid_mut(g) {
                 // Merge onto a matching stack under the cursor.
@@ -633,8 +693,12 @@ impl InventoryUi {
     }
 
     fn equip(&mut self, ctx: &mut InvCtx, origin: Origin, uid: u64) {
-        let Some(kind) = ctx.item(origin, uid).map(|i| i.kind) else { return };
-        let Some(slot) = EquipSlot::ALL.iter().copied().find(|s| s.accepts(kind)) else { return };
+        let Some(kind) = ctx.item(origin, uid).map(|i| i.kind) else {
+            return;
+        };
+        let Some(slot) = EquipSlot::ALL.iter().copied().find(|s| s.accepts(kind)) else {
+            return;
+        };
         if matches!(origin, Origin::Slot(_)) {
             return;
         }
@@ -647,7 +711,14 @@ impl InventoryUi {
         }
     }
 
-    fn menu_action(&mut self, ctx: &mut InvCtx, origin: Origin, uid: u64, action: MenuAction, out: &mut Vec<InvAction>) {
+    fn menu_action(
+        &mut self,
+        ctx: &mut InvCtx,
+        origin: Origin,
+        uid: u64,
+        action: MenuAction,
+        out: &mut Vec<InvAction>,
+    ) {
         match action {
             MenuAction::Modify => out.push(InvAction::Modify(origin, uid)),
             MenuAction::Use => {
@@ -693,7 +764,9 @@ impl InventoryUi {
                 }
             }
             MenuAction::Unload => {
-                let Some(w) = ctx.item_mut(origin, uid).and_then(|i| i.weapon.as_mut()) else { return };
+                let Some(w) = ctx.item_mut(origin, uid).and_then(|i| i.weapon.as_mut()) else {
+                    return;
+                };
                 let (Some(ammo), n) = (w.loaded, w.rounds) else { return };
                 w.rounds = 0;
                 if !ctx.return_ammo(ammo, n) {
@@ -701,7 +774,9 @@ impl InventoryUi {
                 }
             }
             MenuAction::Load(ammo) => {
-                let Some(w) = ctx.item_mut(origin, uid).and_then(|i| i.weapon.as_mut()) else { return };
+                let Some(w) = ctx.item_mut(origin, uid).and_then(|i| i.weapon.as_mut()) else {
+                    return;
+                };
                 let cap = w.capacity();
                 let mut returned = None;
                 if w.loaded != Some(ammo) && w.rounds > 0 {
@@ -782,7 +857,12 @@ pub fn equipment_column(ui: &mut egui::Ui, inv: &mut InventoryUi, ctx: &InvCtx) 
             inv.grid(ui, ctx, GridRef::Rig);
         });
         ui.vertical(|ui| {
-            let name = ctx.equipment.backpack.as_ref().map(|i| i.name()).unwrap_or("no backpack");
+            let name = ctx
+                .equipment
+                .backpack
+                .as_ref()
+                .map(|i| i.name())
+                .unwrap_or("no backpack");
             section(ui, &format!("BACKPACK · {name}"));
             inv.grid(ui, ctx, GridRef::Backpack);
         });

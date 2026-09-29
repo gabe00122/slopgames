@@ -334,7 +334,14 @@ impl World {
         let mut normal = IVec3::ZERO;
         loop {
             let b = self.get(p);
-            if !b.is_air() && !visit(RayHit { pos: p, normal, t, block: b }) {
+            if !b.is_air()
+                && !visit(RayHit {
+                    pos: p,
+                    normal,
+                    t,
+                    block: b,
+                })
+            {
                 return;
             }
             if t_max.x < t_max.y && t_max.x < t_max.z {

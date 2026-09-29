@@ -21,12 +21,42 @@ struct FaceDir {
 
 // u x v = n, u = texture right, v = texture up (as seen from outside).
 const FACES: [FaceDir; 6] = [
-    FaceDir { n: IVec3::new(1, 0, 0), u: IVec3::new(0, 0, -1), v: IVec3::new(0, 1, 0), tile_slot: 1 },
-    FaceDir { n: IVec3::new(-1, 0, 0), u: IVec3::new(0, 0, 1), v: IVec3::new(0, 1, 0), tile_slot: 1 },
-    FaceDir { n: IVec3::new(0, 1, 0), u: IVec3::new(1, 0, 0), v: IVec3::new(0, 0, -1), tile_slot: 0 },
-    FaceDir { n: IVec3::new(0, -1, 0), u: IVec3::new(1, 0, 0), v: IVec3::new(0, 0, 1), tile_slot: 2 },
-    FaceDir { n: IVec3::new(0, 0, 1), u: IVec3::new(1, 0, 0), v: IVec3::new(0, 1, 0), tile_slot: 1 },
-    FaceDir { n: IVec3::new(0, 0, -1), u: IVec3::new(-1, 0, 0), v: IVec3::new(0, 1, 0), tile_slot: 1 },
+    FaceDir {
+        n: IVec3::new(1, 0, 0),
+        u: IVec3::new(0, 0, -1),
+        v: IVec3::new(0, 1, 0),
+        tile_slot: 1,
+    },
+    FaceDir {
+        n: IVec3::new(-1, 0, 0),
+        u: IVec3::new(0, 0, 1),
+        v: IVec3::new(0, 1, 0),
+        tile_slot: 1,
+    },
+    FaceDir {
+        n: IVec3::new(0, 1, 0),
+        u: IVec3::new(1, 0, 0),
+        v: IVec3::new(0, 0, -1),
+        tile_slot: 0,
+    },
+    FaceDir {
+        n: IVec3::new(0, -1, 0),
+        u: IVec3::new(1, 0, 0),
+        v: IVec3::new(0, 0, 1),
+        tile_slot: 2,
+    },
+    FaceDir {
+        n: IVec3::new(0, 0, 1),
+        u: IVec3::new(1, 0, 0),
+        v: IVec3::new(0, 1, 0),
+        tile_slot: 1,
+    },
+    FaceDir {
+        n: IVec3::new(0, 0, -1),
+        u: IVec3::new(-1, 0, 0),
+        v: IVec3::new(0, 1, 0),
+        tile_slot: 1,
+    },
 ];
 
 const CORNERS: [(i32, i32); 4] = [(-1, -1), (1, -1), (1, 1), (-1, 1)];
@@ -129,23 +159,11 @@ pub fn mesh_chunk(world: &World, cpos: IVec3) -> ChunkMesh {
                     }
                     // Flip the quad diagonal to avoid AO interpolation artifacts.
                     if ao_vals[0] + ao_vals[2] < ao_vals[1] + ao_vals[3] {
-                        mesh.indices.extend_from_slice(&[
-                            base + 1,
-                            base + 2,
-                            base + 3,
-                            base + 1,
-                            base + 3,
-                            base,
-                        ]);
+                        mesh.indices
+                            .extend_from_slice(&[base + 1, base + 2, base + 3, base + 1, base + 3, base]);
                     } else {
-                        mesh.indices.extend_from_slice(&[
-                            base,
-                            base + 1,
-                            base + 2,
-                            base,
-                            base + 2,
-                            base + 3,
-                        ]);
+                        mesh.indices
+                            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
                     }
                 }
             }
@@ -165,13 +183,7 @@ pub fn mesh_chunks_parallel(world: &World, coords: &[IVec3]) -> Vec<(IVec3, Chun
     std::thread::scope(|s| {
         let handles: Vec<_> = coords
             .chunks(per)
-            .map(|part| {
-                s.spawn(move || {
-                    part.iter()
-                        .map(|c| (*c, mesh_chunk(world, *c)))
-                        .collect::<Vec<_>>()
-                })
-            })
+            .map(|part| s.spawn(move || part.iter().map(|c| (*c, mesh_chunk(world, *c))).collect::<Vec<_>>()))
             .collect();
         for h in handles {
             if let Ok(v) = h.join() {

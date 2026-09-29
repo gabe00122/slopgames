@@ -57,12 +57,45 @@ pub struct MeshBuilder {
 
 /// Unit cube faces: (normal, 4 corners CCW from outside).
 const CUBE_FACES: [([f32; 3], [[f32; 3]; 4]); 6] = [
-    ([1.0, 0.0, 0.0], [[0.5, -0.5, 0.5], [0.5, -0.5, -0.5], [0.5, 0.5, -0.5], [0.5, 0.5, 0.5]]),
-    ([-1.0, 0.0, 0.0], [[-0.5, -0.5, -0.5], [-0.5, -0.5, 0.5], [-0.5, 0.5, 0.5], [-0.5, 0.5, -0.5]]),
-    ([0.0, 1.0, 0.0], [[-0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [0.5, 0.5, -0.5], [-0.5, 0.5, -0.5]]),
-    ([0.0, -1.0, 0.0], [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [0.5, -0.5, 0.5], [-0.5, -0.5, 0.5]]),
-    ([0.0, 0.0, 1.0], [[-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [0.5, 0.5, 0.5], [-0.5, 0.5, 0.5]]),
-    ([0.0, 0.0, -1.0], [[0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, 0.5, -0.5], [0.5, 0.5, -0.5]]),
+    (
+        [1.0, 0.0, 0.0],
+        [[0.5, -0.5, 0.5], [0.5, -0.5, -0.5], [0.5, 0.5, -0.5], [0.5, 0.5, 0.5]],
+    ),
+    (
+        [-1.0, 0.0, 0.0],
+        [
+            [-0.5, -0.5, -0.5],
+            [-0.5, -0.5, 0.5],
+            [-0.5, 0.5, 0.5],
+            [-0.5, 0.5, -0.5],
+        ],
+    ),
+    (
+        [0.0, 1.0, 0.0],
+        [[-0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [0.5, 0.5, -0.5], [-0.5, 0.5, -0.5]],
+    ),
+    (
+        [0.0, -1.0, 0.0],
+        [
+            [-0.5, -0.5, -0.5],
+            [0.5, -0.5, -0.5],
+            [0.5, -0.5, 0.5],
+            [-0.5, -0.5, 0.5],
+        ],
+    ),
+    (
+        [0.0, 0.0, 1.0],
+        [[-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [0.5, 0.5, 0.5], [-0.5, 0.5, 0.5]],
+    ),
+    (
+        [0.0, 0.0, -1.0],
+        [
+            [0.5, -0.5, -0.5],
+            [-0.5, -0.5, -0.5],
+            [-0.5, 0.5, -0.5],
+            [0.5, 0.5, -0.5],
+        ],
+    ),
 ];
 
 impl MeshBuilder {
@@ -115,11 +148,7 @@ impl MeshBuilder {
     pub fn add_aabb(&mut self, min: Vec3, max: Vec3, color: [u8; 4], emissive: bool) {
         let center = (min + max) * 0.5;
         let size = (max - min).max(Vec3::splat(1e-4));
-        self.add_cube(
-            Mat4::from_translation(center) * Mat4::from_scale(size),
-            color,
-            emissive,
-        );
+        self.add_cube(Mat4::from_translation(center) * Mat4::from_scale(size), color, emissive);
     }
 
     /// A thin box stretched between two points (tracers, beams).
@@ -131,11 +160,7 @@ impl MeshBuilder {
         }
         let dir = d / len;
         let rot = glam::Quat::from_rotation_arc(Vec3::Z, dir);
-        let m = Mat4::from_scale_rotation_translation(
-            Vec3::new(thickness, thickness, len),
-            rot,
-            (a + b) * 0.5,
-        );
+        let m = Mat4::from_scale_rotation_translation(Vec3::new(thickness, thickness, len), rot, (a + b) * 0.5);
         self.add_cube(m, color, emissive);
     }
 }

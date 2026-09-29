@@ -149,16 +149,10 @@ pub fn resolve_armor(
     rng: &mut Rng,
 ) -> ArmorResult {
     let Some(a) = armor else {
-        return ArmorResult {
-            damage,
-            blocked: false,
-        };
+        return ArmorResult { damage, blocked: false };
     };
     if !a.kind.covers(part) || a.durability <= 0.0 {
-        return ArmorResult {
-            damage,
-            blocked: false,
-        };
+        return ArmorResult { damage, blocked: false };
     }
     let def = a.kind.def();
     let dur_frac = (a.durability / def.max_durability).clamp(0.0, 1.0);

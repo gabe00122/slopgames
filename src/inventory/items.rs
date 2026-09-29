@@ -304,7 +304,11 @@ impl ItemKind {
                 if d.loudness != 0.0 {
                     parts.push(format!("loudness {:+.0}%", d.loudness * 100.0));
                 }
-                let fits: Vec<&str> = d.fits.iter().map(|r| r.def().name.split_whitespace().next().unwrap_or("")).collect();
+                let fits: Vec<&str> = d
+                    .fits
+                    .iter()
+                    .map(|r| r.def().name.split_whitespace().next().unwrap_or(""))
+                    .collect();
                 parts.push(format!("fits: {}", fits.join(", ")));
                 parts.join("\n")
             }

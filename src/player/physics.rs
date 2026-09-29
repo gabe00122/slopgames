@@ -59,9 +59,21 @@ fn resolve_axis(world: &World, pos: &mut Vec3, axis: usize, d: f32, half_w: f32,
         return false;
     }
     match axis {
-        0 => pos.x = if d > 0.0 { limit - half_w - EPS } else { limit + half_w + EPS },
+        0 => {
+            pos.x = if d > 0.0 {
+                limit - half_w - EPS
+            } else {
+                limit + half_w + EPS
+            }
+        }
         1 => pos.y = if d > 0.0 { limit - height - EPS } else { limit + 1e-4 },
-        _ => pos.z = if d > 0.0 { limit - half_w - EPS } else { limit + half_w + EPS },
+        _ => {
+            pos.z = if d > 0.0 {
+                limit - half_w - EPS
+            } else {
+                limit + half_w + EPS
+            }
+        }
     }
     true
 }

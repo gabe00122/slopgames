@@ -180,7 +180,10 @@ impl Game {
         let seed = self.raid_seed.take().unwrap_or_else(|| self.rng.next_u64());
         let t0 = std::time::Instant::now();
         self.raid = Some(Raid::new(seed, equipment));
-        log::info!("Generated raid (seed {seed}) in {:.1} ms", t0.elapsed().as_secs_f32() * 1000.0);
+        log::info!(
+            "Generated raid (seed {seed}) in {:.1} ms",
+            t0.elapsed().as_secs_f32() * 1000.0
+        );
         self.screen = Screen::Raid;
         self.world_reload = true;
         self.paused = false;
@@ -291,7 +294,7 @@ impl Game {
                 self.paused = !self.paused;
             }
         } else if !self.paused && self.modding.is_none() {
-            if input.pressed(KeyCode::KeyE) {
+            if input.pressed(KeyCode::KeyE) || input.pressed(KeyCode::KeyF) {
                 if h.open_station.is_some() {
                     h.open_station = None;
                 } else if !h.stash_open {
@@ -454,7 +457,8 @@ impl Game {
             self.settings.show_debug = !self.settings.show_debug;
         }
         let target_sway = Vec2::new(-input.mouse_delta.x, input.mouse_delta.y) * 0.00035;
-        self.sway += (target_sway.clamp(Vec2::splat(-0.03), Vec2::splat(0.03)) - self.sway) * (1.0 - (-10.0 * dt).exp());
+        self.sway +=
+            (target_sway.clamp(Vec2::splat(-0.03), Vec2::splat(0.03)) - self.sway) * (1.0 - (-10.0 * dt).exp());
 
         if self.world_clear {
             renderer.clear_world();
@@ -610,8 +614,14 @@ impl Game {
                 }
                 ui.separator();
                 ui.label(egui::RichText::new("STASH").strong().color(ui::style::ACCENT));
-                ui.label(format!("Stash value: {}", ui::inventory::value_label(self.profile.stash.total_value())));
-                ui.label(format!("Gear value: {}", ui::inventory::value_label(self.profile.equipment.total_value())));
+                ui.label(format!(
+                    "Stash value: {}",
+                    ui::inventory::value_label(self.profile.stash.total_value())
+                ));
+                ui.label(format!(
+                    "Gear value: {}",
+                    ui::inventory::value_label(self.profile.equipment.total_value())
+                ));
                 if ui.button("Sort stash").clicked() {
                     sort = true;
                 }
@@ -636,9 +646,11 @@ impl Game {
         egui::CentralPanel::default_margins().show(ui, |ui| {
             ui.label(egui::RichText::new("STASH (10 x 30)").color(ui::style::ACCENT));
             ui.label(
-                egui::RichText::new("Right-click a weapon to modify or load it. Ctrl+click moves items between stash and gear.")
-                    .size(11.5)
-                    .color(ui::style::TEXT_DIM),
+                egui::RichText::new(
+                    "Right-click a weapon to modify or load it. Ctrl+click moves items between stash and gear.",
+                )
+                .size(11.5)
+                .color(ui::style::TEXT_DIM),
             );
             egui::ScrollArea::vertical().id_salt("stash_scroll").show(ui, |ui| {
                 inv.grid(ui, &ctx, GridRef::Stash);
@@ -701,7 +713,14 @@ impl Game {
 
     fn raid_ui(&mut self, ui: &mut egui::Ui) {
         let Some(raid) = self.raid.as_mut() else { return };
-        ui::hud::draw_hud(ui, raid, &self.settings, &self.stats, &self.adapter_info, self.raid_inventory);
+        ui::hud::draw_hud(
+            ui,
+            raid,
+            &self.settings,
+            &self.stats,
+            &self.adapter_info,
+            self.raid_inventory,
+        );
         if raid.dead.is_some() {
             if ui::hud::death_overlay(ui, raid) {
                 raid.accept_death();
@@ -721,7 +740,11 @@ impl Game {
             };
             let inv = &mut self.inv;
             egui::CentralPanel::no_frame()
-                .frame(egui::Frame::NONE.fill(egui::Color32::from_black_alpha(185)).inner_margin(18.0))
+                .frame(
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_black_alpha(185))
+                        .inner_margin(18.0),
+                )
                 .show(ui, |ui| {
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
@@ -856,12 +879,15 @@ impl Game {
                         }
                         // The selected block, held in hand.
                         let b = h.selected_block();
-                        let bob = (h.player.walk_phase * 3.2).sin().abs() * 0.015 * (h.player.horizontal_speed() / 4.0).min(1.0);
+                        let bob = (h.player.walk_phase * 3.2).sin().abs()
+                            * 0.015
+                            * (h.player.horizontal_speed() / 4.0).min(1.0);
                         let m = Mat4::from_translation(Vec3::new(0.34, -0.32 - bob, -0.6))
                             * Mat4::from_rotation_y(0.6)
                             * Mat4::from_rotation_x(0.25)
                             * Mat4::from_scale(Vec3::splat(0.24));
-                        self.viewmodel.add_cube_tiled(m, [255, 255, 255, 255], b.info().emissive, b.info().tiles[1]);
+                        self.viewmodel
+                            .add_cube_tiled(m, [255, 255, 255, 255], b.info().emissive, b.info().tiles[1]);
                         vm_proj = Some(crate::render::perspective(62f32.to_radians(), aspect, 0.01, 10.0));
                     }
                 }
@@ -873,7 +899,11 @@ impl Game {
             view_proj,
             cam_pos,
             sun_dir: Vec3::new(0.35, 0.85, 0.25),
-            sky_color: if draw_world { [0.58, 0.68, 0.78] } else { [0.15, 0.16, 0.17] },
+            sky_color: if draw_world {
+                [0.58, 0.68, 0.78]
+            } else {
+                [0.15, 0.16, 0.17]
+            },
             fog_start: 70.0,
             fog_end: 185.0,
             ambient_boost: ambient,
@@ -945,7 +975,9 @@ impl Game {
         for a in AttachmentId::ALL {
             let _ = self.profile.stash.insert(Item::new(ItemKind::Attachment(a)));
         }
-        let Some(item) = self.profile.equipment.primary.take() else { return };
+        let Some(item) = self.profile.equipment.primary.take() else {
+            return;
+        };
         self.open_modding(item, Origin::Slot(EquipSlot::Primary));
         self.screen = Screen::Stash;
         if let Some(w) = self.modding.as_mut().and_then(|m| m.item.weapon.as_mut()) {
@@ -980,7 +1012,13 @@ impl Game {
             "loot" => {
                 self.start_raid();
                 if let Some(raid) = self.raid.as_mut() {
-                    if let Some((p, k)) = raid.map.containers.iter().find(|(_, k)| *k == crate::world::ContainerKind::WeaponBox).copied() {
+                    if let Some((p, k)) = raid
+                        .map
+                        .containers
+                        .iter()
+                        .find(|(_, k)| *k == crate::world::ContainerKind::WeaponBox)
+                        .copied()
+                    {
                         raid.open(Interact::Container(p, k));
                         self.raid_inventory = true;
                     }
@@ -1064,7 +1102,12 @@ fn build_raid_entities(mb: &mut MeshBuilder, raid: &Raid, time: f32) {
         for k in 0..12 {
             let a = k as f32 / 12.0 * std::f32::consts::TAU + time * 0.3;
             let p = e.pos + Vec3::new(a.cos() * e.radius, 0.05, a.sin() * e.radius);
-            mb.add_aabb(p - Vec3::new(0.12, 0.0, 0.12), p + Vec3::new(0.12, 0.08, 0.12), [90, 240, 120, 255], true);
+            mb.add_aabb(
+                p - Vec3::new(0.12, 0.0, 0.12),
+                p + Vec3::new(0.12, 0.08, 0.12),
+                [90, 240, 120, 255],
+                true,
+            );
         }
     }
 }
