@@ -2,4 +2,5 @@
 
 pub mod hud;
 pub mod menu;
+pub mod modding;
 pub mod style;

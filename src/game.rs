@@ -6,7 +6,8 @@ use winit::keyboard::KeyCode;
 use crate::ai::ScavState;
 use crate::input::Input;
 use crate::player::MoveInput;
-use crate::raid::{PlayerKit, Raid};
+use crate::raid::{PlayerKit, Raid, WeaponSlot};
+use crate::weapons::PartsBin;
 use crate::render::models::{self, HumanoidLook, HumanoidPose, ViewmodelParams};
 use crate::render::{FrameScene, MeshBuilder, Renderer};
 use crate::rng::Rng;
@@ -66,6 +67,14 @@ pub struct Game {
     sway: Vec2,
     /// Debug: keep the weapon aimed down sights (screenshots).
     pub debug_force_ads: bool,
+    pub modding: Option<ModdingSession>,
+    /// Loose attachments available to the modding screen.
+    pub parts: PartsBin,
+}
+
+pub struct ModdingSession {
+    pub slot: WeaponSlot,
+    pub ui: ui::modding::ModdingUi,
 }
 
 impl Game {
@@ -86,6 +95,8 @@ impl Game {
             time: 0.0,
             sway: Vec2::ZERO,
             debug_force_ads: false,
+            modding: None,
+            parts: PartsBin::everything(),
         };
         game.start_raid(seed);
         game
@@ -105,7 +116,7 @@ impl Game {
     /// Should the OS cursor be captured for mouse-look?
     pub fn wants_cursor_grab(&self) -> bool {
         match &self.raid {
-            Some(r) => !self.paused && r.dead.is_none(),
+            Some(r) => !self.paused && self.modding.is_none() && r.dead.is_none(),
             None => false,
         }
     }
@@ -120,7 +131,11 @@ impl Game {
             self.settings.show_debug = !self.settings.show_debug;
         }
         if input.pressed(KeyCode::Escape) {
-            self.paused = !self.paused;
+            if self.modding.is_some() {
+                self.modding = None;
+            } else {
+                self.paused = !self.paused;
+            }
         }
         let target_sway = Vec2::new(-input.mouse_delta.x, input.mouse_delta.y) * 0.00035;
         self.sway += (target_sway.clamp(Vec2::splat(-0.03), Vec2::splat(0.03)) - self.sway) * (1.0 - (-10.0 * dt).exp());
@@ -130,7 +145,7 @@ impl Game {
                 renderer.load_world(&mut raid.world);
                 self.world_dirty_reload = false;
             }
-            if !self.paused {
+            if !self.paused && self.modding.is_none() {
                 raid.update(dt, input, &self.settings, true);
                 if self.debug_force_ads {
                     raid.gun.ads = 1.0;
@@ -141,6 +156,10 @@ impl Game {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
+        if self.modding.is_some() {
+            self.modding_ui(ui);
+            return;
+        }
         let mut restart = false;
         if let Some(raid) = &self.raid {
             ui::hud::draw_hud(ui, raid, &self.settings, &self.stats, &self.adapter_info);
@@ -155,6 +174,12 @@ impl Game {
         if self.paused {
             match ui::menu::pause_menu(ui) {
                 Some(ui::menu::PauseAction::Resume) => self.paused = false,
+                Some(ui::menu::PauseAction::ModWeapons) => {
+                    self.modding = Some(ModdingSession {
+                        slot: WeaponSlot::Primary,
+                        ui: Default::default(),
+                    });
+                }
                 Some(ui::menu::PauseAction::Quit) => self.quit_requested = true,
                 None => {}
             }
@@ -173,6 +198,44 @@ impl Game {
         }
     }
 
+    fn modding_ui(&mut self, ui: &mut egui::Ui) {
+        let (Some(raid), Some(session)) = (self.raid.as_mut(), self.modding.as_mut()) else {
+            return;
+        };
+        egui::Panel::top("mod_tabs").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (slot, label) in [(WeaponSlot::Primary, "Primary"), (WeaponSlot::Holster, "Holster")] {
+                    let name = match slot {
+                        WeaponSlot::Primary => raid.kit.primary.as_ref(),
+                        WeaponSlot::Holster => raid.kit.holster.as_ref(),
+                    }
+                    .map(|w| w.name())
+                    .unwrap_or("empty");
+                    if ui.selectable_label(session.slot == slot, format!("{label}: {name}")).clicked() {
+                        session.slot = slot;
+                    }
+                }
+            });
+        });
+        let weapon = match session.slot {
+            WeaponSlot::Primary => raid.kit.primary.as_mut(),
+            WeaponSlot::Holster => raid.kit.holster.as_mut(),
+        };
+        let Some(weapon) = weapon else {
+            if ui.button("Back").clicked() {
+                self.modding = None;
+            }
+            return;
+        };
+        let events = ui::modding::modding_screen(ui, &mut session.ui, weapon, &mut self.parts);
+        for e in events {
+            match e {
+                ui::modding::ModdingEvent::Close => self.modding = None,
+                ui::modding::ModdingEvent::Unloaded(ammo, n) => raid.kit.return_ammo(ammo, n),
+            }
+        }
+    }
+
     pub fn build_scene(&mut self, aspect: f32) -> FrameScene<'_> {
         self.dynamic.clear();
         self.viewmodel.clear();
@@ -180,7 +243,18 @@ impl Game {
         let mut cam_pos = Vec3::ZERO;
         let mut draw_world = false;
         let mut vm_proj = None;
-        if let Some(raid) = &self.raid {
+        let mut ambient = 0.0;
+        if let (Some(raid), Some(session)) = (&self.raid, &self.modding) {
+            let w = match session.slot {
+                WeaponSlot::Primary => raid.kit.primary.as_ref(),
+                WeaponSlot::Holster => raid.kit.holster.as_ref(),
+            };
+            if let Some(w) = w {
+                models::showcase(&mut self.viewmodel, w, self.time);
+                vm_proj = Some(crate::render::perspective(42f32.to_radians(), aspect, 0.05, 10.0));
+                ambient = 0.9;
+            }
+        } else if let Some(raid) = &self.raid {
             draw_world = true;
             let fov = (self.settings.fov_deg / raid.zoom()).to_radians();
             let proj = crate::render::perspective(fov, aspect, 0.05, 400.0);
@@ -213,10 +287,10 @@ impl Game {
             view_proj,
             cam_pos,
             sun_dir: Vec3::new(0.35, 0.85, 0.25),
-            sky_color: [0.58, 0.68, 0.78],
+            sky_color: if draw_world { [0.58, 0.68, 0.78] } else { [0.15, 0.16, 0.17] },
             fog_start: 70.0,
             fog_end: 185.0,
-            ambient_boost: 0.0,
+            ambient_boost: ambient,
             time: self.time,
             dynamic: &self.dynamic,
             viewmodel: vm_proj.map(|p| (&self.viewmodel, p)),
@@ -224,6 +298,26 @@ impl Game {
     }
 
     pub fn on_exit(&mut self) {}
+
+    /// Debug: fit a set of attachments and open the modding screen.
+    pub fn debug_mod_demo(&mut self) {
+        use crate::weapons::{swap_attachment, AttachmentId, Slot};
+        if let Some(w) = self.raid.as_mut().and_then(|r| r.kit.primary.as_mut()) {
+            for (slot, a) in [
+                (Slot::Muzzle, AttachmentId::Pbs4Suppressor),
+                (Slot::Sight, AttachmentId::Pso1Scope),
+                (Slot::Magazine, AttachmentId::Rpk16Drum95),
+                (Slot::Grip, AttachmentId::Rk2Grip),
+                (Slot::Stock, AttachmentId::ZhukovStock),
+            ] {
+                let _ = swap_attachment(w, slot, Some(a), &mut self.parts);
+            }
+        }
+        self.modding = Some(ModdingSession {
+            slot: WeaponSlot::Primary,
+            ui: Default::default(),
+        });
+    }
 
     /// Place the camera at a fixed pose with noclip (debug / screenshots).
     pub fn debug_camera(&mut self, c: [f32; 5]) {

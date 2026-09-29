@@ -290,6 +290,103 @@ impl Weapon {
     }
 }
 
+/// Something attachments can be taken from and returned to (a parts bin, the stash...).
+pub trait PartSource {
+    fn count(&self, a: AttachmentId) -> u32;
+    fn take(&mut self, a: AttachmentId) -> bool;
+    /// Returns false if the part could not be stored (e.g. no space).
+    fn give(&mut self, a: AttachmentId) -> bool;
+}
+
+/// A simple bag of loose attachments.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct PartsBin {
+    pub parts: Vec<(AttachmentId, u32)>,
+}
+
+impl PartsBin {
+    /// One of every attachment (sandbox / testing).
+    pub fn everything() -> Self {
+        Self {
+            parts: AttachmentId::ALL.iter().map(|a| (*a, 1)).collect(),
+        }
+    }
+}
+
+impl PartSource for PartsBin {
+    fn count(&self, a: AttachmentId) -> u32 {
+        self.parts.iter().filter(|(p, _)| *p == a).map(|(_, n)| *n).sum()
+    }
+
+    fn take(&mut self, a: AttachmentId) -> bool {
+        if let Some(e) = self.parts.iter_mut().find(|(p, n)| *p == a && *n > 0) {
+            e.1 -= 1;
+            self.parts.retain(|(_, n)| *n > 0);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn give(&mut self, a: AttachmentId) -> bool {
+        if let Some(e) = self.parts.iter_mut().find(|(p, _)| *p == a) {
+            e.1 += 1;
+        } else {
+            self.parts.push((a, 1));
+        }
+        true
+    }
+}
+
+/// Outcome of swapping an attachment.
+#[derive(Debug, PartialEq)]
+pub struct SwapResult {
+    /// Rounds unloaded because the magazine was changed.
+    pub unloaded: Option<(AmmoType, u32)>,
+}
+
+/// Install `new` (or clear the slot) on `weapon`, moving parts to/from `src`.
+/// On failure nothing changes.
+pub fn swap_attachment(
+    weapon: &mut Weapon,
+    slot: Slot,
+    new: Option<AttachmentId>,
+    src: &mut dyn PartSource,
+) -> Result<SwapResult, String> {
+    if !weapon.receiver.has_slot(slot) {
+        return Err(format!("{} has no {} slot", weapon.name(), slot.name()));
+    }
+    if let Some(n) = new {
+        if n.def().slot != slot || !n.fits(weapon.receiver) {
+            return Err(format!("{} does not fit", n.def().name));
+        }
+    }
+    let old = weapon.attachment(slot);
+    if old == new {
+        return Ok(SwapResult { unloaded: None });
+    }
+    if let Some(n) = new {
+        if !src.take(n) {
+            return Err(format!("{} is not available", n.def().name));
+        }
+    }
+    if let Some(o) = old {
+        if !src.give(o) {
+            if let Some(n) = new {
+                src.give(n);
+            }
+            return Err("Not enough space to store the removed part".into());
+        }
+    }
+    let mut unloaded = None;
+    if slot == Slot::Magazine && weapon.rounds > 0 {
+        unloaded = weapon.loaded.map(|a| (a, weapon.rounds));
+        weapon.rounds = 0;
+    }
+    weapon.set_attachment(slot, new);
+    Ok(SwapResult { unloaded })
+}
+
 /// Firing state for a weapon while it is being used in a raid.
 #[derive(Clone, Debug, Default)]
 pub struct GunState {
@@ -337,6 +434,27 @@ mod tests {
             assert!(w.stats().operable);
             assert!(w.capacity() > 1);
         }
+    }
+
+    #[test]
+    fn swapping_moves_parts_and_unloads_mags() {
+        let mut bin = PartsBin::default();
+        bin.give(AttachmentId::Ak74Mag45);
+        let mut w = Weapon::new(ReceiverId::Ak74n).loaded_with(AmmoType::Ps545, 30);
+        let r = swap_attachment(&mut w, Slot::Magazine, Some(AttachmentId::Ak74Mag45), &mut bin).unwrap();
+        assert_eq!(r.unloaded, Some((AmmoType::Ps545, 30)));
+        assert_eq!(w.capacity(), 45);
+        assert_eq!(bin.count(AttachmentId::Ak74Mag30), 1);
+        assert_eq!(bin.count(AttachmentId::Ak74Mag45), 0);
+        // AKM parts don't fit an AK-74.
+        bin.give(AttachmentId::AkmMag30);
+        assert!(swap_attachment(&mut w, Slot::Magazine, Some(AttachmentId::AkmMag30), &mut bin).is_err());
+        // Pistols have no stock slot.
+        let mut p = Weapon::new(ReceiverId::Grach);
+        assert!(swap_attachment(&mut p, Slot::Stock, None, &mut bin).is_err());
+        // Removing a part puts it in the bin.
+        swap_attachment(&mut w, Slot::Stock, None, &mut bin).unwrap();
+        assert_eq!(bin.count(AttachmentId::Ak74PolymerStock), 1);
     }
 
     #[test]

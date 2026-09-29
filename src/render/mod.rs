@@ -645,20 +645,11 @@ impl Renderer {
 
         // --- World pass ---
         {
-            let clear = if scene.draw_world {
-                wgpu::Color {
-                    r: sky_lin[0] as f64,
-                    g: sky_lin[1] as f64,
-                    b: sky_lin[2] as f64,
-                    a: 1.0,
-                }
-            } else {
-                wgpu::Color {
-                    r: 0.008,
-                    g: 0.01,
-                    b: 0.012,
-                    a: 1.0,
-                }
+            let clear = wgpu::Color {
+                r: sky_lin[0] as f64,
+                g: sky_lin[1] as f64,
+                b: sky_lin[2] as f64,
+                a: 1.0,
             };
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("world pass"),
@@ -705,7 +696,7 @@ impl Renderer {
         }
 
         // --- Viewmodel pass (own depth so the gun never clips into walls) ---
-        if scene.draw_world && self.dyn_vm.count > 0 {
+        if self.dyn_vm.count > 0 {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("viewmodel pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {

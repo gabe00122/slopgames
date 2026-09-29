@@ -34,9 +34,25 @@ fn text(p: &egui::Painter, pos: Pos2, align: Align2, s: impl ToString, size: f32
 fn scope_overlay(p: &egui::Painter, screen: Rect) {
     let c = screen.center();
     let r = screen.height() * 0.46;
-    let big = screen.width().max(screen.height()) * 1.5;
-    // A very thick ring masks everything outside the lens.
-    p.circle_stroke(c, r + big / 2.0, Stroke::new(big, Color32::BLACK));
+    // Mask everything outside the lens with an annulus mesh.
+    let outer = screen.width().max(screen.height()) * 1.5;
+    let mut mesh = egui::Mesh::default();
+    let n = 96;
+    for i in 0..n {
+        let a = i as f32 / n as f32 * std::f32::consts::TAU;
+        let d = Vec2::new(a.cos(), a.sin());
+        mesh.colored_vertex(c + d * r, Color32::BLACK);
+        mesh.colored_vertex(c + d * outer, Color32::BLACK);
+    }
+    for i in 0..n as u32 {
+        let j = (i + 1) % n as u32;
+        let (a0, b0, a1, b1) = (i * 2, i * 2 + 1, j * 2, j * 2 + 1);
+        mesh.add_triangle(a0, b0, b1);
+        mesh.add_triangle(a0, b1, a1);
+    }
+    p.add(egui::Shape::mesh(mesh));
+    // Soft vignette inside the lens edge.
+    p.circle_stroke(c, r - 10.0, Stroke::new(22.0, Color32::from_black_alpha(90)));
     p.circle_stroke(c, r, Stroke::new(3.0, Color32::from_rgb(20, 20, 20)));
     let ink = Stroke::new(1.6, Color32::from_rgb(10, 10, 10));
     // PSO-style chevron and stadia lines.

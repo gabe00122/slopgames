@@ -4,6 +4,7 @@ use super::style;
 
 pub enum PauseAction {
     Resume,
+    ModWeapons,
     Quit,
 }
 
@@ -21,6 +22,9 @@ pub fn pause_menu(ui: &mut egui::Ui) -> Option<PauseAction> {
             ui.vertical_centered(|ui| {
                 if style::big_button(ui, "Resume", 240.0).clicked() {
                     action = Some(PauseAction::Resume);
+                }
+                if style::big_button(ui, "Modify weapons", 240.0).clicked() {
+                    action = Some(PauseAction::ModWeapons);
                 }
                 if style::big_button(ui, "Quit game", 240.0).clicked() {
                     action = Some(PauseAction::Quit);

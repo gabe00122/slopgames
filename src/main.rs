@@ -38,6 +38,7 @@ struct Args {
     /// Debug camera pose "x,y,z,yaw,pitch" (enables noclip).
     cam: Option<[f32; 5]>,
     force_ads: bool,
+    mod_demo: bool,
 }
 
 fn parse_args() -> Args {
@@ -49,6 +50,7 @@ fn parse_args() -> Args {
             "--seed" => args.seed = it.next().and_then(|v| v.parse().ok()),
             "--screenshot" => args.screenshot = it.next(),
             "--force-ads" => args.force_ads = true,
+            "--mod-demo" => args.mod_demo = true,
             "--cam" => {
                 let v: Vec<f32> = it
                     .next()
@@ -187,6 +189,13 @@ impl ApplicationHandler for App {
             game.debug_camera(c);
         }
         game.debug_force_ads = self.args.force_ads;
+        if self.args.mod_demo {
+            game.debug_mod_demo();
+            if self.args.force_ads {
+                // Look through the fitted scope instead of opening the modding screen.
+                game.modding = None;
+            }
+        }
         self.state = Some(Running {
             window,
             renderer,

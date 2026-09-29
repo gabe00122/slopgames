@@ -392,3 +392,25 @@ pub fn viewmodel(mb: &mut MeshBuilder, w: &Weapon, p: &ViewmodelParams) {
         );
     }
 }
+
+/// Slowly rotating side view of a weapon for the modding screen.
+pub fn showcase(mb: &mut MeshBuilder, w: &Weapon, time: f32) {
+    let pistol = w.receiver == ReceiverId::Grach;
+    let scale = if pistol { 2.6 } else { 1.0 };
+    // Centre the model along its length (muzzle to stock butt).
+    let front = muzzle_point(w).z;
+    let back = if pistol {
+        0.05
+    } else if w.attachment(Slot::Stock).is_some() {
+        0.38
+    } else {
+        0.14
+    };
+    let center_z = (front + back) * 0.5;
+    let m = Mat4::from_translation(Vec3::new(0.0, 0.0, -2.5))
+        * Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2 + (time * 0.5).sin() * 0.35)
+        * Mat4::from_rotation_x(0.06)
+        * Mat4::from_scale(Vec3::splat(scale))
+        * Mat4::from_translation(Vec3::new(0.0, 0.03, -center_z));
+    weapon_model(mb, w, m);
+}
