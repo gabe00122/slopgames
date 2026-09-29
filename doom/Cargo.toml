@@ -1,0 +1,17 @@
+[package]
+name = "hellcast"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "1"
+wgpu = "30"
+winit = "0.30"
+
+# Procedural asset generation runs at startup; keep debug builds snappy.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
