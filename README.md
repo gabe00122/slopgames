@@ -1,5 +1,7 @@
 # Voxel Raid
 
+!!This is a AI slop game I made as a experiemnt!!
+
 A Minecraft / Escape-from-Tarkov hybrid written in Rust: blocky, fully destructible
 voxel maps combined with a hardcore extraction-shooter loop. Gear up from your stash,
 raid a procedurally generated town full of hostile scavs, loot crates and bodies,

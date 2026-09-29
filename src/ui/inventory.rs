@@ -251,10 +251,13 @@ fn paint_item(p: &egui::Painter, rect: Rect, item: &Item, hovered: bool, alpha: 
         Stroke::new(1.0, Color32::from_white_alpha((70.0 * alpha) as u8)),
         StrokeKind::Inside,
     );
-    let text_col = Color32::from_rgba_unmultiplied(235, 232, 215, (255.0 * alpha) as u8);
-    let font = if rect.width() < 60.0 { 10.0 } else { 11.5 };
+    super::icon::paint(p, rect, item, alpha);
+    // Small name caption over the art so near-identical items stay distinct.
+    let text_col = Color32::from_rgba_unmultiplied(232, 228, 210, (215.0 * alpha) as u8);
+    let font = if rect.width() < 60.0 { 9.0 } else { 10.0 };
+    let label: String = item.kind.short().lines().next().unwrap_or_default().to_string();
     let galley = p.layout(
-        item.kind.short(),
+        label,
         FontId::proportional(font),
         text_col,
         (rect.width() - 6.0).max(10.0),

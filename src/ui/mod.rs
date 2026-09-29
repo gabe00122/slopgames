@@ -2,6 +2,7 @@
 
 pub mod hideout;
 pub mod hud;
+pub mod icon;
 pub mod inventory;
 pub mod menu;
 pub mod modding;
