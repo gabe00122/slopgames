@@ -5,11 +5,14 @@
 mod ai;
 mod effects;
 mod game;
+mod hideout;
 mod input;
+mod inventory;
 mod player;
 mod raid;
 mod render;
 mod rng;
+mod save;
 mod ui;
 mod weapons;
 mod world;
@@ -39,6 +42,10 @@ struct Args {
     cam: Option<[f32; 5]>,
     force_ads: bool,
     mod_demo: bool,
+    /// Open a screen directly: stash, raid, loot, summary.
+    screen: Option<String>,
+    /// Override the save file location.
+    save: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -51,6 +58,8 @@ fn parse_args() -> Args {
             "--screenshot" => args.screenshot = it.next(),
             "--force-ads" => args.force_ads = true,
             "--mod-demo" => args.mod_demo = true,
+            "--screen" => args.screen = it.next(),
+            "--save" => args.save = it.next(),
             "--cam" => {
                 let v: Vec<f32> = it
                     .next()
@@ -63,7 +72,11 @@ fn parse_args() -> Args {
                 }
             }
             "--help" | "-h" => {
-                println!("voxel-raid [--seed N] [--smoke-frames N] [--screenshot out.png]");
+                println!(
+                    "voxel-raid [--save FILE] [--seed N]\n\
+                     debug: [--smoke-frames N] [--screenshot out.png] [--screen stash|raid|loot|summary]\n\
+                     \x20      [--cam x,y,z,yaw,pitch] [--force-ads] [--mod-demo]"
+                );
                 std::process::exit(0);
             }
             other => eprintln!("ignoring unknown argument {other}"),
@@ -184,17 +197,27 @@ impl ApplicationHandler for App {
             None,
             Some(max_tex),
         );
-        let mut game = Game::new(&mut renderer, self.args.seed);
-        if let Some(c) = self.args.cam {
-            game.debug_camera(c);
-        }
+        let save_path = self
+            .args
+            .save
+            .clone()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(save::save_path);
+        let mut game = Game::new(&renderer, save_path);
+        game.raid_seed = self.args.seed;
         game.debug_force_ads = self.args.force_ads;
         if self.args.mod_demo {
             game.debug_mod_demo();
-            if self.args.force_ads {
-                // Look through the fitted scope instead of opening the modding screen.
-                game.modding = None;
-            }
+        }
+        if self.args.force_ads && self.args.mod_demo {
+            // Look through the fitted scope in a raid instead of staying in the modding screen.
+            game.debug_screen("raid");
+        }
+        if let Some(screen) = &self.args.screen {
+            game.debug_screen(screen);
+        }
+        if let Some(c) = self.args.cam {
+            game.debug_camera(c);
         }
         self.state = Some(Running {
             window,

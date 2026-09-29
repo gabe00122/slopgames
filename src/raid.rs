@@ -1,19 +1,27 @@
-//! An in-progress raid: the map, the player, scavs, combat and effects.
+//! An in-progress raid: the map, the player, scavs, combat, loot and extraction.
 
-use glam::{Vec2, Vec3};
+use std::collections::HashMap;
+
+use glam::{IVec3, Vec2, Vec3};
 use winit::keyboard::KeyCode;
 
 use crate::ai::{PlayerInfo, Scav, ScavShot, ScavState};
 use crate::effects::Effects;
 use crate::game::{gather_move_input, Settings};
 use crate::input::Input;
+use crate::inventory::{loot, EquipSlot, Equipment, Grid, GridRef, Item, ItemKind, MedKind};
 use crate::player::{BodyPart, Player};
 use crate::rng::Rng;
-use crate::weapons::armor::{resolve_armor, ArmorKind, ArmorState};
-use crate::weapons::ballistics::{self, humanoid_hitboxes, ShotOutcome, TargetBoxes, TargetId};
-use crate::weapons::{AmmoType, Caliber, GunState, ReceiverId, ReloadState, Weapon};
-use crate::world::gen::{generate_raid_map, MapInfo};
-use crate::world::World;
+use crate::weapons::armor::resolve_armor;
+use crate::weapons::ballistics::{self, humanoid_hitboxes, ray_hitbox, Hitbox, ShotOutcome, TargetBoxes, TargetId};
+use crate::weapons::{AmmoType, Caliber, GunState, ReloadState, Weapon};
+use crate::world::gen::{generate_raid_map, ExtractPoint, MapInfo};
+use crate::world::{ContainerKind, World};
+
+/// Raid duration before the player is declared missing in action.
+pub const RAID_TIME: f32 = 25.0 * 60.0;
+pub const EXTRACT_TIME: f32 = 6.0;
+const INTERACT_RANGE: f32 = 2.6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WeaponSlot {
@@ -21,56 +29,11 @@ pub enum WeaponSlot {
     Holster,
 }
 
-/// What the player carries into the raid (temporary until the inventory milestone).
-pub struct PlayerKit {
-    pub primary: Option<Weapon>,
-    pub holster: Option<Weapon>,
-    pub ammo: Vec<(AmmoType, u32)>,
-    pub helmet: Option<ArmorState>,
-    pub armor: Option<ArmorState>,
-}
-
-impl PlayerKit {
-    pub fn default_kit() -> Self {
-        Self {
-            primary: Some(Weapon::new(ReceiverId::Ak74n).loaded_with(AmmoType::Ps545, 30)),
-            holster: Some(Weapon::new(ReceiverId::Grach).loaded_with(AmmoType::Pst9, 17)),
-            ammo: vec![
-                (AmmoType::Ps545, 120),
-                (AmmoType::Bs545, 60),
-                (AmmoType::Hp545, 60),
-                (AmmoType::Pst9, 51),
-            ],
-            helmet: Some(ArmorState::new(ArmorKind::Kiver)),
-            armor: Some(ArmorState::new(ArmorKind::Zhuk3)),
-        }
-    }
-
-    pub fn ammo_count(&self, ammo: AmmoType) -> u32 {
-        self.ammo.iter().filter(|(a, _)| *a == ammo).map(|(_, n)| *n).sum()
-    }
-
-    pub fn take_ammo(&mut self, ammo: AmmoType, n: u32) -> u32 {
-        let mut left = n;
-        for (a, c) in self.ammo.iter_mut() {
-            if *a == ammo && left > 0 {
-                let t = (*c).min(left);
-                *c -= t;
-                left -= t;
-            }
-        }
-        self.ammo.retain(|(_, c)| *c > 0);
-        n - left
-    }
-
-    pub fn return_ammo(&mut self, ammo: AmmoType, n: u32) {
-        if n == 0 {
-            return;
-        }
-        if let Some((_, c)) = self.ammo.iter_mut().find(|(a, _)| *a == ammo) {
-            *c += n;
-        } else {
-            self.ammo.push((ammo, n));
+impl WeaponSlot {
+    pub fn equip_slot(self) -> EquipSlot {
+        match self {
+            WeaponSlot::Primary => EquipSlot::Primary,
+            WeaponSlot::Holster => EquipSlot::Holster,
         }
     }
 }
@@ -85,6 +48,43 @@ pub struct DeathInfo {
     pub cause: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LootRef {
+    Container(IVec3),
+    Body(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Interact {
+    Container(IVec3, ContainerKind),
+    Body(usize),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum OutcomeKind {
+    Survived(String),
+    Killed(String),
+    MissingInAction,
+}
+
+#[derive(Clone, Debug)]
+pub struct RaidOutcome {
+    pub kind: OutcomeKind,
+    pub time: f32,
+    pub kills: u32,
+    pub value_in: u64,
+    pub value_out: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct HealState {
+    pub remaining: f32,
+    pub total: f32,
+    pub grid: GridRef,
+    pub uid: u64,
+    pub kind: MedKind,
+}
+
 pub struct Raid {
     pub seed: u64,
     pub world: World,
@@ -94,7 +94,7 @@ pub struct Raid {
     pub scavs: Vec<Scav>,
     pub effects: Effects,
     pub rng: Rng,
-    pub kit: PlayerKit,
+    pub equipment: Equipment,
     pub active: WeaponSlot,
     pub gun: GunState,
     /// Preferred ammo type per calibre for the next reload.
@@ -103,13 +103,25 @@ pub struct Raid {
     pub hit_marker: f32,
     pub hit_marker_kill: bool,
     pub damage_flash: f32,
-    /// World-space direction of the last hit taken (for the HUD indicator).
+    /// World-space origin of the last hit taken (for the HUD indicator).
     pub last_hit_from: Option<Vec3>,
     pub hit_indicator: f32,
     pub kills: u32,
     pub dead: Option<DeathInfo>,
     last_damage_cause: String,
     footstep_timer: f32,
+    /// Generated lazily the first time a container is opened.
+    pub containers: HashMap<IVec3, Grid>,
+    pub bodies: HashMap<usize, Grid>,
+    pub open_loot: Option<LootRef>,
+    /// Extraction points available this raid.
+    pub extracts: Vec<ExtractPoint>,
+    pub extract_progress: f32,
+    pub extracting_at: Option<usize>,
+    pub heal: Option<HealState>,
+    pub value_in: u64,
+    pub finished: Option<RaidOutcome>,
+    pub show_extracts: f32,
 }
 
 fn yaw_towards(from: Vec3, to: Vec3) -> f32 {
@@ -117,8 +129,18 @@ fn yaw_towards(from: Vec3, to: Vec3) -> f32 {
     (-d.x).atan2(-d.z)
 }
 
+/// Box the (lying) corpse occupies, for interaction raycasts.
+pub fn corpse_box(s: &Scav) -> Hitbox {
+    Hitbox {
+        part: BodyPart::Thorax,
+        center: s.pos + s.forward() * 0.9 + Vec3::Y * 0.15,
+        half: Vec3::new(0.4, 0.25, 0.95),
+        yaw: s.yaw,
+    }
+}
+
 impl Raid {
-    pub fn new(seed: u64, kit: PlayerKit) -> Self {
+    pub fn new(seed: u64, equipment: Equipment) -> Self {
         let (world, map) = generate_raid_map(seed);
         let mut rng = Rng::new(seed ^ 0xABCD_EF01);
         let spawn = if map.player_spawns.is_empty() {
@@ -128,6 +150,21 @@ impl Raid {
         };
         let center = Vec3::new(96.0, spawn.y, 96.0);
         let player = Player::new(spawn, yaw_towards(spawn, center));
+
+        // Extracts: the ones far from the spawn are open this raid.
+        let mut extracts = map.extracts.clone();
+        extracts.sort_by(|a, b| {
+            b.pos
+                .distance(spawn)
+                .partial_cmp(&a.pos.distance(spawn))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let far: Vec<ExtractPoint> = extracts.iter().filter(|e| e.pos.distance(spawn) > 70.0).cloned().collect();
+        let extracts = if far.len() >= 2 {
+            far.into_iter().take(3).collect()
+        } else {
+            extracts.into_iter().take(2).collect()
+        };
 
         // Scavs: spread out, away from the player.
         let mut candidates: Vec<Vec3> = map
@@ -150,11 +187,12 @@ impl Raid {
                 candidates.swap_remove(i);
             }
         }
-        let active = if kit.primary.is_some() {
+        let active = if equipment.primary.is_some() {
             WeaponSlot::Primary
         } else {
             WeaponSlot::Holster
         };
+        let value_in = equipment.total_value();
         let mut raid = Self {
             seed,
             world,
@@ -164,7 +202,7 @@ impl Raid {
             scavs,
             effects: Effects::default(),
             rng,
-            kit,
+            equipment,
             active,
             gun: GunState::default(),
             ammo_pref: Vec::new(),
@@ -178,9 +216,20 @@ impl Raid {
             dead: None,
             last_damage_cause: "Unknown".into(),
             footstep_timer: 0.0,
+            containers: HashMap::new(),
+            bodies: HashMap::new(),
+            open_loot: None,
+            extracts,
+            extract_progress: 0.0,
+            extracting_at: None,
+            heal: None,
+            value_in,
+            finished: None,
+            show_extracts: 10.0,
         };
-        raid.player.body = crate::player::Body::new();
-        raid.message("Raid started. Find loot and reach an extraction point.", [220, 210, 170]);
+        let names: Vec<String> = raid.extracts.iter().map(|e| e.name.clone()).collect();
+        raid.message(format!("Extracts: {}", names.join(", ")), [140, 220, 140]);
+        raid.message("Find loot and reach an extraction point. [O] shows exits.", [220, 210, 170]);
         raid
     }
 
@@ -196,17 +245,15 @@ impl Raid {
     }
 
     pub fn weapon(&self) -> Option<&Weapon> {
-        match self.active {
-            WeaponSlot::Primary => self.kit.primary.as_ref(),
-            WeaponSlot::Holster => self.kit.holster.as_ref(),
-        }
+        self.equipment.weapon(self.active.equip_slot())
     }
 
     fn weapon_mut(&mut self) -> Option<&mut Weapon> {
-        match self.active {
-            WeaponSlot::Primary => self.kit.primary.as_mut(),
-            WeaponSlot::Holster => self.kit.holster.as_mut(),
-        }
+        self.equipment.weapon_mut(self.active.equip_slot())
+    }
+
+    pub fn time_left(&self) -> f32 {
+        (RAID_TIME - self.time).max(0.0)
     }
 
     pub fn preferred_ammo(&self, cal: Caliber) -> Option<AmmoType> {
@@ -218,22 +265,34 @@ impl Raid {
         let w = self.weapon()?;
         let cal = w.caliber();
         if let Some(p) = self.preferred_ammo(cal) {
-            if self.kit.ammo_count(p) > 0 {
+            if self.equipment.ammo_count(p) > 0 {
                 return Some(p);
             }
         }
         if let Some(l) = w.loaded {
-            if self.kit.ammo_count(l) > 0 {
+            if self.equipment.ammo_count(l) > 0 {
                 return Some(l);
             }
         }
-        cal.ammo_types().iter().copied().find(|a| self.kit.ammo_count(*a) > 0)
+        cal.ammo_types().iter().copied().find(|a| self.equipment.ammo_count(*a) > 0)
     }
 
     pub fn reserve_for_active(&self) -> u32 {
         self.weapon()
-            .map(|w| w.caliber().ammo_types().iter().map(|a| self.kit.ammo_count(*a)).sum())
+            .map(|w| w.caliber().ammo_types().iter().map(|a| self.equipment.ammo_count(*a)).sum())
             .unwrap_or(0)
+    }
+
+    /// Put loose rounds back into the player's pouches.
+    fn return_ammo(&mut self, ammo: AmmoType, mut n: u32) {
+        while n > 0 {
+            let chunk = n.min(ItemKind::Ammo(ammo).max_stack());
+            n -= chunk;
+            if self.equipment.stow(Item::stack(ItemKind::Ammo(ammo), chunk)).is_err() {
+                self.message(format!("No space for {} rounds - dropped", chunk + n), [230, 120, 90]);
+                return;
+            }
+        }
     }
 
     pub fn is_scoped(&self) -> bool {
@@ -253,7 +312,7 @@ impl Raid {
             eye: p.eye_pos(),
             chest: p.pos + Vec3::Y * if p.crouching { 0.95 } else { 1.3 },
             crouching: p.crouching,
-            alive: self.dead.is_none(),
+            alive: self.dead.is_none() && self.finished.is_none(),
             speed: p.horizontal_speed(),
         }
     }
@@ -287,7 +346,189 @@ impl Raid {
         hip.lerp(ads, self.gun.ads)
     }
 
+    // ------------------------------------------------------------------
+    // Interaction & loot
+    // ------------------------------------------------------------------
+
+    /// What the player is looking at and could interact with.
+    pub fn interaction(&self) -> Option<Interact> {
+        if self.dead.is_some() {
+            return None;
+        }
+        let eye = self.player.eye_pos();
+        let dir = self.player.look_dir();
+        let mut best: Option<(f32, Interact)> = None;
+        if let Some(h) = self.world.raycast(eye, dir, INTERACT_RANGE, |b| b.is_solid()) {
+            if let Some(k) = h.block.container() {
+                best = Some((h.t, Interact::Container(h.pos, k)));
+            }
+        }
+        for (i, s) in self.scavs.iter().enumerate() {
+            if s.alive() || s.pos.distance(eye) > 4.0 {
+                continue;
+            }
+            if let Some(t) = ray_hitbox(eye, dir, &corpse_box(s)) {
+                if t < INTERACT_RANGE && best.is_none_or(|(bt, _)| t < bt) {
+                    best = Some((t, Interact::Body(i)));
+                }
+            }
+        }
+        best.map(|b| b.1)
+    }
+
+    pub fn interaction_label(&self, i: Interact) -> String {
+        match i {
+            Interact::Container(p, k) => {
+                if self.containers.contains_key(&p) {
+                    format!("[F] Open {}", k.name())
+                } else {
+                    format!("[F] Search {}", k.name())
+                }
+            }
+            Interact::Body(i) => format!("[F] Search {}", self.scavs[i].name),
+        }
+    }
+
+    /// Open a container / body for looting (generating its contents if needed).
+    pub fn open(&mut self, i: Interact) {
+        match i {
+            Interact::Container(p, kind) => {
+                if !self.containers.contains_key(&p) {
+                    let g = loot::container_loot(kind, &mut self.rng);
+                    self.containers.insert(p, g);
+                }
+                self.open_loot = Some(LootRef::Container(p));
+            }
+            Interact::Body(i) => {
+                if !self.bodies.contains_key(&i) {
+                    let g = loot::scav_body_loot(&self.scavs[i], &mut self.rng);
+                    self.bodies.insert(i, g);
+                }
+                self.scavs[i].searched = true;
+                self.open_loot = Some(LootRef::Body(i));
+            }
+        }
+    }
+
+    pub fn loot_name(&self) -> Option<String> {
+        match self.open_loot? {
+            LootRef::Container(p) => self.world.get(p).container().map(|k| k.name().to_string()),
+            LootRef::Body(i) => Some(self.scavs[i].name.clone()),
+        }
+    }
+
+    /// Split borrow: equipment and the open loot grid at the same time.
+    pub fn equipment_and_loot(&mut self) -> (&mut Equipment, Option<&mut Grid>) {
+        let loot = match self.open_loot {
+            Some(LootRef::Container(p)) => self.containers.get_mut(&p),
+            Some(LootRef::Body(i)) => self.bodies.get_mut(&i),
+            None => None,
+        };
+        (&mut self.equipment, loot)
+    }
+
+    // ------------------------------------------------------------------
+    // Healing
+    // ------------------------------------------------------------------
+
+    pub fn start_heal_with(&mut self, grid: GridRef, uid: u64) {
+        if self.heal.is_some() || self.dead.is_some() {
+            return;
+        }
+        let Some(item) = self.equipment.grid(grid).and_then(|g| g.get(uid)) else { return };
+        let ItemKind::Med(kind) = item.item.kind else { return };
+        if kind.is_surgery() && !self.player.body.has_destroyed_limb() {
+            self.message("No destroyed limbs to operate on", [200, 200, 200]);
+            return;
+        }
+        if !kind.is_surgery() && !self.player.body.is_injured() {
+            self.message("You are not injured", [200, 200, 200]);
+            return;
+        }
+        self.heal = Some(HealState {
+            remaining: kind.use_time(),
+            total: kind.use_time(),
+            grid,
+            uid,
+            kind,
+        });
+        self.gun.reload = None;
+    }
+
+    fn quick_heal(&mut self) {
+        let surgery = self.player.body.has_destroyed_limb() && self.equipment.find_med(true).is_some();
+        let found = if surgery {
+            self.equipment.find_med(true)
+        } else {
+            self.equipment.find_med(false)
+        };
+        match found {
+            Some((g, uid, _)) => self.start_heal_with(g, uid),
+            None => self.message("No medical supplies in your rig, pockets or backpack", [230, 120, 90]),
+        }
+    }
+
+    fn finish_heal(&mut self, h: HealState) {
+        let body = &mut self.player.body;
+        let Some(grid) = self.equipment.grid_mut(h.grid) else { return };
+        let Some(p) = grid.get_mut(h.uid) else { return };
+        let uses = p.item.uses.unwrap_or(0);
+        let msg;
+        if h.kind.is_surgery() {
+            if let Some(part) = body.repair_destroyed() {
+                p.item.uses = Some(uses.saturating_sub(1));
+                msg = format!("Operated on {}", part.name());
+            } else {
+                msg = "Nothing to operate on".into();
+            }
+        } else {
+            let healed = body.heal(uses as f32);
+            p.item.uses = Some(uses.saturating_sub(healed.ceil() as u32));
+            msg = format!("Healed {:.0} HP", healed);
+        }
+        if p.item.uses == Some(0) {
+            grid.remove(h.uid);
+        }
+        self.message(msg, [140, 220, 140]);
+    }
+
+    // ------------------------------------------------------------------
+    // Update
+    // ------------------------------------------------------------------
+
+    fn finish(&mut self, kind: OutcomeKind) {
+        if self.finished.is_some() {
+            return;
+        }
+        let value_out = if matches!(kind, OutcomeKind::Survived(_)) {
+            self.equipment.total_value()
+        } else {
+            0
+        };
+        self.finished = Some(RaidOutcome {
+            kind,
+            time: self.time,
+            kills: self.kills,
+            value_in: self.value_in,
+            value_out,
+        });
+    }
+
+    /// Player gave up / left the raid.
+    pub fn abandon(&mut self) {
+        self.finish(OutcomeKind::MissingInAction);
+    }
+
+    /// Called from the death screen.
+    pub fn accept_death(&mut self) {
+        let cause = self.dead.as_ref().map(|d| d.cause.clone()).unwrap_or_default();
+        self.finish(OutcomeKind::Killed(cause));
+    }
+
     pub fn update(&mut self, dt: f32, input: &Input, settings: &Settings, accept_input: bool) {
+        if self.finished.is_some() {
+            return;
+        }
         self.time += dt;
         for m in &mut self.messages {
             m.ttl -= dt;
@@ -296,6 +537,7 @@ impl Raid {
         self.hit_marker = (self.hit_marker - dt).max(0.0);
         self.damage_flash = (self.damage_flash - dt * 1.5).max(0.0);
         self.hit_indicator = (self.hit_indicator - dt).max(0.0);
+        self.show_extracts = (self.show_extracts - dt).max(0.0);
 
         let alive = self.dead.is_none();
         let accept = accept_input && alive;
@@ -312,6 +554,12 @@ impl Raid {
             if input.pressed(KeyCode::KeyN) && cfg!(debug_assertions) {
                 self.player.noclip = !self.player.noclip;
             }
+            if input.pressed(KeyCode::KeyO) {
+                self.show_extracts = 8.0;
+            }
+            if input.pressed(KeyCode::KeyH) {
+                self.quick_heal();
+            }
         }
 
         // --- Movement ---
@@ -319,6 +567,10 @@ impl Raid {
         let mut speed_mult = 1.0 - 0.4 * self.gun.ads;
         if self.gun.is_reloading() {
             speed_mult *= 0.85;
+        }
+        if self.heal.is_some() {
+            speed_mult *= 0.55;
+            mv.sprint = false;
         }
         mv.speed_mult = speed_mult;
         if self.gun.ads > 0.3 || input.lmb() && accept {
@@ -339,6 +591,17 @@ impl Raid {
             let pos = self.player.pos;
             for s in &mut self.scavs {
                 s.hear(pos, 11.0, &mut self.rng);
+            }
+        }
+
+        // --- Healing ---
+        if let Some(mut h) = self.heal {
+            h.remaining -= dt;
+            if h.remaining <= 0.0 {
+                self.heal = None;
+                self.finish_heal(h);
+            } else {
+                self.heal = Some(h);
             }
         }
 
@@ -364,6 +627,34 @@ impl Raid {
                 cause: self.last_damage_cause.clone(),
             });
             self.gun.ads = 0.0;
+            self.heal = None;
+            self.open_loot = None;
+        }
+
+        // --- Extraction & timer ---
+        if self.dead.is_none() {
+            let p = self.player.pos;
+            let inside = self.extracts.iter().position(|e| {
+                Vec2::new(p.x - e.pos.x, p.z - e.pos.z).length() < e.radius && (p.y - e.pos.y).abs() < 3.0
+            });
+            if inside != self.extracting_at {
+                self.extract_progress = 0.0;
+                if let Some(i) = inside {
+                    let name = self.extracts[i].name.clone();
+                    self.message(format!("Extracting at {name} - stay in the zone"), [140, 220, 140]);
+                }
+            }
+            self.extracting_at = inside;
+            if let Some(i) = inside {
+                self.extract_progress += dt;
+                if self.extract_progress >= EXTRACT_TIME {
+                    let name = self.extracts[i].name.clone();
+                    self.finish(OutcomeKind::Survived(name));
+                }
+            }
+            if self.time >= RAID_TIME {
+                self.finish(OutcomeKind::MissingInAction);
+            }
         }
     }
 
@@ -387,7 +678,6 @@ impl Raid {
         }
 
         if accept {
-            // Weapon switching.
             let want = if input.pressed(KeyCode::Digit1) {
                 Some(WeaponSlot::Primary)
             } else if input.pressed(KeyCode::Digit2) {
@@ -404,9 +694,20 @@ impl Raid {
                 self.switch_weapon(slot);
             }
         }
+        // The active weapon may have been moved away in the inventory.
+        if self.weapon().is_none() {
+            let other = match self.active {
+                WeaponSlot::Primary => WeaponSlot::Holster,
+                WeaponSlot::Holster => WeaponSlot::Primary,
+            };
+            if self.equipment.weapon(other.equip_slot()).is_some() {
+                self.switch_weapon(other);
+            }
+        }
 
         let Some(stats) = self.weapon().map(|w| w.stats()) else {
             self.gun.ads = 0.0;
+            self.gun.reload = None;
             return;
         };
 
@@ -422,7 +723,7 @@ impl Raid {
         }
 
         // ADS.
-        let want_ads = accept && input.rmb() && !self.player.sprinting && self.gun.draw <= 0.0;
+        let want_ads = accept && input.rmb() && !self.player.sprinting && self.gun.draw <= 0.0 && self.heal.is_none();
         let rate = 1.0 / stats.ads_time.max(0.05);
         if want_ads {
             self.gun.ads = (self.gun.ads + rate * dt).min(1.0);
@@ -445,7 +746,7 @@ impl Raid {
         if input.pressed(KeyCode::KeyT) {
             self.cycle_ammo_pref();
         }
-        if input.pressed(KeyCode::KeyR) {
+        if input.pressed(KeyCode::KeyR) && self.heal.is_none() {
             self.start_reload();
         }
 
@@ -459,6 +760,7 @@ impl Raid {
             && !self.gun.is_reloading()
             && self.gun.draw <= 0.0
             && !self.player.sprinting
+            && self.heal.is_none()
         {
             let rounds = self.weapon().map(|w| w.rounds).unwrap_or(0);
             if !stats.operable {
@@ -477,14 +779,10 @@ impl Raid {
     }
 
     fn switch_weapon(&mut self, slot: WeaponSlot) {
-        if slot == self.active {
+        if slot == self.active && self.weapon().is_some() {
             return;
         }
-        let has = match slot {
-            WeaponSlot::Primary => self.kit.primary.is_some(),
-            WeaponSlot::Holster => self.kit.holster.is_some(),
-        };
-        if !has {
+        if self.equipment.weapon(slot.equip_slot()).is_none() {
             return;
         }
         self.active = slot;
@@ -501,14 +799,17 @@ impl Raid {
             .ammo_types()
             .iter()
             .copied()
-            .filter(|a| self.kit.ammo_count(*a) > 0)
+            .filter(|a| self.equipment.ammo_count(*a) > 0)
             .collect();
         if types.is_empty() {
             self.message(format!("No spare {} ammo", cal.name()), [230, 120, 90]);
             return;
         }
         let current = self.next_reload_ammo();
-        let idx = current.and_then(|c| types.iter().position(|t| *t == c)).map(|i| (i + 1) % types.len()).unwrap_or(0);
+        let idx = current
+            .and_then(|c| types.iter().position(|t| *t == c))
+            .map(|i| (i + 1) % types.len())
+            .unwrap_or(0);
         let next = types[idx];
         self.ammo_pref.retain(|(c, _)| *c != cal);
         self.ammo_pref.push((cal, next));
@@ -520,7 +821,7 @@ impl Raid {
             return;
         }
         let Some(ammo) = self.next_reload_ammo() else {
-            self.message("No ammo for this weapon", [230, 120, 90]);
+            self.message("No ammo for this weapon in your rig, pockets or backpack", [230, 120, 90]);
             return;
         };
         let Some(w) = self.weapon() else { return };
@@ -537,32 +838,24 @@ impl Raid {
     }
 
     fn finish_reload(&mut self, r: ReloadState) {
-        let active = self.active;
-        let w = match active {
-            WeaponSlot::Primary => self.kit.primary.as_mut(),
-            WeaponSlot::Holster => self.kit.holster.as_mut(),
-        };
-        let Some(w) = w else { return };
+        let slot = self.active.equip_slot();
+        let Some(w) = self.equipment.weapon_mut(slot) else { return };
         let cap = w.capacity();
-        // Unload rounds of a different type back into the pouch.
+        // Unload rounds of a different type back into the pouches.
         let mut returned = None;
         if w.loaded != Some(r.ammo) && w.rounds > 0 {
             returned = w.loaded.map(|a| (a, w.rounds));
             w.rounds = 0;
         }
-        let need = cap.saturating_sub(w.rounds);
         let rounds_before = w.rounds;
-        if let Some((a, n)) = returned {
-            self.kit.return_ammo(a, n);
-        }
-        let got = self.kit.take_ammo(r.ammo, need);
-        let w = match active {
-            WeaponSlot::Primary => self.kit.primary.as_mut(),
-            WeaponSlot::Holster => self.kit.holster.as_mut(),
-        };
-        if let Some(w) = w {
+        let need = cap.saturating_sub(rounds_before);
+        let got = self.equipment.take_kind(ItemKind::Ammo(r.ammo), need);
+        if let Some(w) = self.equipment.weapon_mut(slot) {
             w.rounds = rounds_before + got;
             w.loaded = Some(r.ammo);
+        }
+        if let Some((a, n)) = returned {
+            self.return_ammo(a, n);
         }
     }
 
@@ -624,7 +917,7 @@ impl Raid {
     fn apply_shot_effects(&mut self, out: &ShotOutcome, dir: Vec3) {
         for b in &out.blocks {
             let tile = b.block.info().tiles[1];
-            let color = self.effect_color(tile);
+            let color = crate::render::atlas::tile_color(tile);
             let n = b.normal.as_vec3();
             if b.destroyed {
                 self.effects.block_break(b.pos.as_vec3() + Vec3::splat(0.5), color, &mut self.rng);
@@ -643,10 +936,6 @@ impl Raid {
         }
     }
 
-    fn effect_color(&self, tile: crate::world::Tile) -> [u8; 4] {
-        crate::render::atlas::tile_color(tile)
-    }
-
     fn damage_scav(&mut self, i: usize, part: BodyPart, damage: f32, pen: f32, ammo: AmmoType, from: Vec3) {
         let time = self.time;
         let s = &mut self.scavs[i];
@@ -663,12 +952,10 @@ impl Raid {
             s.kill(time);
             let name = s.name.clone();
             self.kills += 1;
-            self.message(
-                format!("Killed {} ({}, {})", name, part.name(), ammo.def().short),
-                [230, 110, 90],
-            );
+            self.message(format!("Killed {} ({}, {})", name, part.name(), ammo.def().short), [230, 110, 90]);
         } else if res.blocked {
-            self.effects.sparks(from.lerp(s.eye(), 0.98), Vec3::Y, &mut self.rng);
+            let eye = s.eye();
+            self.effects.sparks(from.lerp(eye, 0.98), Vec3::Y, &mut self.rng);
         }
     }
 
@@ -682,7 +969,6 @@ impl Raid {
         self.effects.tracer(shot.origin + shot.dir * 0.4, out.end, shot.ammo.def().tracer);
         self.effects.muzzle_flash(shot.origin + shot.dir * 0.35);
         let dir = shot.dir;
-        // Blocks near the player get debris; skip effects far away for perf.
         if out.end.distance(self.player.pos) < 120.0 {
             let o = ShotOutcome {
                 end: out.end,
@@ -692,16 +978,21 @@ impl Raid {
             self.apply_shot_effects(&o, dir);
         }
         if let Some(hit) = out.entity {
-            let armor = if hit.part == BodyPart::Head {
-                self.kit.helmet.as_mut()
+            let slot = if hit.part == BodyPart::Head {
+                EquipSlot::Helmet
             } else {
-                self.kit.armor.as_mut()
+                EquipSlot::Armor
             };
-            let res = resolve_armor(armor, hit.part, hit.damage * hit.part.damage_mult(), hit.pen, &mut self.rng);
+            let mut state = self.equipment.armor_state(slot);
+            let res = resolve_armor(state.as_mut(), hit.part, hit.damage * hit.part.damage_mult(), hit.pen, &mut self.rng);
+            if let Some(s) = state {
+                self.equipment.set_durability(slot, s.durability);
+            }
             let outcome = self.player.body.damage(hit.part, res.damage);
             self.damage_flash = (self.damage_flash + 0.6).min(1.0);
             self.last_hit_from = Some(shot.origin);
             self.hit_indicator = 1.2;
+            self.heal = None;
             let shooter = self.scavs.get(shot.scav).map(|s| s.name.clone()).unwrap_or_else(|| "Scav".into());
             self.last_damage_cause = format!("{} - {} ({})", shooter, hit.part.name(), shot.ammo.def().name);
             if res.blocked {
@@ -710,7 +1001,6 @@ impl Raid {
                 self.message(format!("{} destroyed!", hit.part.name()), [230, 80, 70]);
             }
         }
-        // The shot also alerts other scavs a little.
         let origin = shot.origin;
         let loud = shot.loudness * 0.4;
         for s in &mut self.scavs {
@@ -729,7 +1019,8 @@ mod tests {
 
     /// A raid with a flat, empty arena carved out around the player.
     fn arena() -> Raid {
-        let mut raid = Raid::new(7, PlayerKit::default_kit());
+        let (_, eq) = crate::inventory::starter_profile_items();
+        let mut raid = Raid::new(7, eq);
         let w = &mut raid.world;
         for x in 40..120 {
             for z in 40..120 {
@@ -809,7 +1100,7 @@ mod tests {
             }
         }
         let wall = IVec3::new(60, 22, 75);
-        if let Some(w) = raid.kit.primary.as_mut() {
+        if let Some(w) = raid.equipment.weapon_mut(EquipSlot::Primary) {
             w.loaded = Some(AmmoType::Bs545);
             w.rounds = 30;
         }
@@ -828,6 +1119,75 @@ mod tests {
         }
         assert!(destroyed, "sustained AP fire should destroy a brick block");
         assert!(!raid.world.take_dirty().is_empty(), "destroyed block must trigger a remesh");
+    }
+
+    #[test]
+    fn reaching_extract_survives_with_loot() {
+        let mut raid = arena();
+        let e = raid.extracts[0].clone();
+        // Build a floor under the extract and stand there.
+        let base = e.pos.floor().as_ivec3();
+        for x in -3..=3 {
+            for z in -3..=3 {
+                raid.world.set(base + IVec3::new(x, -1, z), Block::Stone);
+                for y in 0..3 {
+                    raid.world.set(base + IVec3::new(x, y, z), Block::Air);
+                }
+            }
+        }
+        raid.player.pos = e.pos;
+        let input = Input::default();
+        let settings = Settings::default();
+        for _ in 0..(60 * 7) {
+            raid.update(1.0 / 60.0, &input, &settings, false);
+        }
+        let out = raid.finished.as_ref().expect("raid should be over");
+        assert!(matches!(out.kind, OutcomeKind::Survived(_)), "{:?}", out.kind);
+        assert!(out.value_out > 0);
+    }
+
+    #[test]
+    fn looting_a_body_and_healing() {
+        let mut raid = arena();
+        let i = place_scav(&mut raid, Vec3::new(60.5, 21.0, 78.5));
+        raid.scavs[i].kill(0.0);
+        raid.open(Interact::Body(i));
+        let (eq, loot) = raid.equipment_and_loot();
+        let loot = loot.expect("body loot");
+        let gun = loot
+            .items
+            .iter()
+            .find(|p| matches!(p.item.kind, ItemKind::Weapon(_)))
+            .map(|p| p.item.uid)
+            .expect("gun on body");
+        let placed = loot.remove(gun).unwrap();
+        assert!(eq.grid_mut(GridRef::Backpack).unwrap().insert(placed.item).is_ok());
+
+        // Heal with the AI-2 in the pockets.
+        raid.player.body.damage(BodyPart::Stomach, 40.0);
+        raid.quick_heal();
+        assert!(raid.heal.is_some());
+        let input = Input::default();
+        let settings = Settings::default();
+        for _ in 0..(60 * 3) {
+            raid.update(1.0 / 60.0, &input, &settings, false);
+        }
+        assert!(raid.heal.is_none());
+        assert!(!raid.player.body.is_injured());
+    }
+
+    #[test]
+    fn reload_draws_ammo_from_rig() {
+        let mut raid = arena();
+        let before = raid.equipment.ammo_count(AmmoType::Ps545);
+        if let Some(w) = raid.equipment.weapon_mut(EquipSlot::Primary) {
+            w.rounds = 5;
+        }
+        raid.start_reload();
+        let r = raid.gun.reload.expect("reloading");
+        raid.finish_reload(r);
+        assert_eq!(raid.weapon().unwrap().rounds, 30);
+        assert_eq!(raid.equipment.ammo_count(AmmoType::Ps545), before - 25);
     }
 
     #[test]

@@ -5,7 +5,8 @@ use egui::{Align2, Color32, FontId, LayerId, Order, Pos2, Rect, Stroke, StrokeKi
 use super::style;
 use crate::game::{FrameStats, Settings};
 use crate::player::BodyPart;
-use crate::raid::Raid;
+use crate::inventory::EquipSlot;
+use crate::raid::{Raid, EXTRACT_TIME};
 use crate::weapons::{AttachmentId, Slot};
 
 fn hud_painter(ctx: &egui::Context) -> egui::Painter {
@@ -105,7 +106,9 @@ fn body_diagram(p: &egui::Painter, origin: Pos2, raid: &Raid) {
         Color32::from_rgb(230, 230, 215),
     );
     let mut y = 40.0;
-    for (label, a) in [("Helmet", raid.kit.helmet), ("Armor", raid.kit.armor)] {
+    let helmet = raid.equipment.armor_state(EquipSlot::Helmet);
+    let armor = raid.equipment.armor_state(EquipSlot::Armor);
+    for (label, a) in [("Helmet", helmet), ("Armor", armor)] {
         if let Some(a) = a {
             let d = a.kind.def();
             text(
@@ -187,7 +190,44 @@ fn weapon_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
     }
 }
 
-pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &FrameStats, adapter: &str) {
+fn extract_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
+    let show = raid.show_extracts > 0.0 || raid.extracting_at.is_some();
+    if !show {
+        return;
+    }
+    let player = &raid.player;
+    let mut y = 64.0;
+    text(p, Pos2::new(screen.right() - 16.0, y), Align2::RIGHT_TOP, "EXFILTRATION", 13.0, style::GOOD);
+    y += 20.0;
+    for e in &raid.extracts {
+        let d = e.pos - player.pos;
+        let dist = Vec2::new(d.x, d.z).length();
+        // Compass bearing relative to where the player is facing.
+        let fwd = player.forward_flat();
+        let right = player.right_flat();
+        let ang = d.dot(right).atan2(d.dot(fwd));
+        let r = text(
+            p,
+            Pos2::new(screen.right() - 36.0, y),
+            Align2::RIGHT_TOP,
+            format!("{}  {:.0} m", e.name, dist),
+            14.0,
+            Color32::from_rgb(200, 240, 200),
+        );
+        // Direction arrow relative to the view (up = straight ahead).
+        let c = Pos2::new(screen.right() - 22.0, r.center().y);
+        let dir = Vec2::new(ang.sin(), -ang.cos());
+        let perp = Vec2::new(-dir.y, dir.x);
+        p.add(egui::Shape::convex_polygon(
+            vec![c + dir * 8.0, c - dir * 6.0 + perp * 6.0, c - dir * 6.0 - perp * 6.0],
+            Color32::from_rgb(140, 230, 150),
+            Stroke::NONE,
+        ));
+        y += 19.0;
+    }
+}
+
+pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &FrameStats, adapter: &str, inventory_open: bool) {
     let ctx = ui.ctx().clone();
     let screen = ctx.content_rect();
     let p = hud_painter(&ctx);
@@ -196,7 +236,7 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
     let alive = raid.dead.is_none();
 
     // --- Aiming overlays ---
-    if alive {
+    if alive && !inventory_open {
         let ads = raid.gun.ads;
         let sight = raid.weapon().and_then(|w| w.attachment(Slot::Sight));
         if raid.is_scoped() {
@@ -271,16 +311,66 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
     body_diagram(&p, Pos2::new(24.0, screen.bottom() - 200.0), raid);
     weapon_panel(&p, screen, raid);
 
-    // Raid clock and kills.
-    let t = raid.time as i32;
+    // Raid clock (time remaining) and kills.
+    let t = raid.time_left() as i32;
     text(
         &p,
         Pos2::new(screen.right() - 16.0, 12.0),
         Align2::RIGHT_TOP,
         format!("{:02}:{:02}", t / 60, t % 60),
         20.0,
-        style::ACCENT,
+        if t < 120 { style::BAD } else { style::ACCENT },
     );
+    extract_panel(&p, screen, raid);
+
+    // Extraction countdown.
+    if let Some(i) = raid.extracting_at {
+        let left = (EXTRACT_TIME - raid.extract_progress).max(0.0);
+        text(
+            &p,
+            center + egui::vec2(0.0, -140.0),
+            Align2::CENTER_CENTER,
+            format!("EXTRACTING - {}  {:.1}", raid.extracts[i].name, left),
+            22.0,
+            style::GOOD,
+        );
+    }
+
+    // Interaction prompt.
+    if alive && !inventory_open {
+        if let Some(i) = raid.interaction() {
+            text(&p, center + egui::vec2(0.0, 48.0), Align2::CENTER_CENTER, raid.interaction_label(i), 16.0, Color32::WHITE);
+        }
+    }
+
+    // Healing progress.
+    if let Some(h) = raid.heal {
+        let frac = 1.0 - h.remaining / h.total.max(0.01);
+        let c = center + egui::vec2(0.0, 90.0);
+        let bar = Rect::from_center_size(c, egui::vec2(180.0, 6.0));
+        p.rect_filled(bar, 2.0, Color32::from_black_alpha(160));
+        let mut fill = bar;
+        fill.set_width(180.0 * frac);
+        p.rect_filled(fill, 2.0, style::GOOD);
+        text(
+            &p,
+            c - egui::vec2(0.0, 8.0),
+            Align2::CENTER_BOTTOM,
+            format!("Using {}", crate::inventory::ItemKind::Med(h.kind).name()),
+            13.0,
+            style::GOOD,
+        );
+    }
+    if !inventory_open && alive {
+        text(
+            &p,
+            Pos2::new(center.x, screen.bottom() - 14.0),
+            Align2::CENTER_BOTTOM,
+            "Tab inventory · F search · H heal · O exits",
+            11.5,
+            Color32::from_white_alpha(110),
+        );
+    }
     text(
         &p,
         Pos2::new(screen.right() - 16.0, 38.0),
@@ -290,8 +380,8 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
         style::TEXT_DIM,
     );
 
-    // Message feed.
-    for (i, m) in raid.messages.iter().enumerate() {
+    // Message feed (hidden behind the inventory).
+    for (i, m) in raid.messages.iter().enumerate().filter(|_| !inventory_open) {
         let alpha = (m.ttl.min(1.0) * 255.0) as u8;
         let c = c3(m.color);
         text(
@@ -336,7 +426,7 @@ pub fn draw_hud(ui: &mut egui::Ui, raid: &Raid, settings: &Settings, stats: &Fra
     }
 }
 
-/// Shown when the player has died. Returns true when "restart" is clicked.
+/// Shown when the player has died. Returns true when "continue" is clicked.
 pub fn death_overlay(ui: &mut egui::Ui, raid: &Raid) -> bool {
     let ctx = ui.ctx().clone();
     let screen = ctx.content_rect();
@@ -355,8 +445,12 @@ pub fn death_overlay(ui: &mut egui::Ui, raid: &Raid) -> bool {
             let t = raid.time as i32;
             ui.label(format!("Time in raid: {:02}:{:02}", t / 60, t % 60));
             ui.label(format!("Kills: {}", raid.kills));
+            ui.label(
+                egui::RichText::new("Everything you brought into the raid is lost.")
+                    .color(style::WARN),
+            );
             ui.add_space(8.0);
-            if style::big_button(ui, "Restart raid", 340.0).clicked() {
+            if style::big_button(ui, "Continue", 340.0).clicked() {
                 restart = true;
             }
         });
