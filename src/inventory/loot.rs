@@ -104,6 +104,31 @@ fn random_med(rng: &mut Rng) -> Item {
     Item::new(ItemKind::Med(m))
 }
 
+/// A random item of any category (used for Fence's rotating assortment).
+pub fn random_trade_item(rng: &mut Rng) -> Item {
+    match rng.weighted(&[20, 25, 20, 15, 15, 5]) {
+        0 => random_weapon(rng),
+        1 => random_attachment(rng),
+        2 => random_ammo(rng),
+        3 => random_med(rng),
+        4 => random_barter(rng, true),
+        _ => {
+            let kinds = [
+                ArmorKind::Paca,
+                ArmorKind::Zhuk3,
+                ArmorKind::Kiver,
+                ArmorKind::Ssh68,
+                ArmorKind::Beanie6b47Lite,
+            ];
+            let k = *rng.pick(&kinds);
+            let mut it = Item::new(ItemKind::Armor(k));
+            // Fence's armor is used.
+            it.durability = Some(k.def().max_durability * rng.range_f32(0.45, 0.9));
+            it
+        }
+    }
+}
+
 fn fill(grid: &mut Grid, items: Vec<Item>) {
     for it in items {
         let _ = grid.insert(it);

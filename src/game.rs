@@ -65,6 +65,7 @@ pub enum Screen {
     Raid,
     Summary,
     Hideout,
+    Traders,
 }
 
 /// A weapon taken out of the stash/equipment while it is being modded.
@@ -97,6 +98,7 @@ pub struct Game {
     /// Debug: keep the weapon aimed down sights (screenshots).
     pub debug_force_ads: bool,
     pub inv: InventoryUi,
+    pub traders_ui: ui::traders::TradersUi,
     pub raid_inventory: bool,
     pub modding: Option<ModdingSession>,
     pub notice: Option<String>,
@@ -137,6 +139,7 @@ impl Game {
             sway: Vec2::ZERO,
             debug_force_ads: false,
             inv: InventoryUi::default(),
+            traders_ui: Default::default(),
             raid_inventory: false,
             modding: None,
             notice: warning,
@@ -179,7 +182,8 @@ impl Game {
         let equipment = std::mem::take(&mut self.profile.equipment);
         let seed = self.raid_seed.take().unwrap_or_else(|| self.rng.next_u64());
         let t0 = std::time::Instant::now();
-        self.raid = Some(Raid::new(seed, equipment));
+        let tracker = self.profile.quests.tracker();
+        self.raid = Some(Raid::new(seed, equipment, tracker));
         log::info!(
             "Generated raid (seed {seed}) in {:.1} ms",
             t0.elapsed().as_secs_f32() * 1000.0
@@ -200,6 +204,7 @@ impl Game {
                 loot,
                 loot_name: String::new(),
                 in_raid: true,
+                sell_to: None,
             };
             self.inv.cancel(&mut ctx);
             raid.open_loot = None;
@@ -216,7 +221,10 @@ impl Game {
             kills: raid.kills,
             value_in: raid.value_in,
             value_out: 0,
+            tasks: raid.quests.summary(),
         });
+        // Task progress (kills, searches, destruction) counts even if you don't make it out.
+        self.profile.quests.merge(&raid.quests);
         save::apply_raid_result(&mut self.profile, raid.equipment, &outcome);
         self.last_outcome = Some(outcome);
         self.screen = Screen::Summary;
@@ -261,6 +269,7 @@ impl Game {
             loot: None,
             loot_name: String::new(),
             in_raid: false,
+            sell_to: None,
         };
         self.inv.cancel(&mut ctx);
         if let Some(h) = self.hideout.as_mut() {
@@ -468,6 +477,11 @@ impl Game {
         match self.screen {
             Screen::Raid => self.update_raid(dt, input, renderer),
             Screen::Hideout => self.update_hideout(dt, input, renderer),
+            Screen::Traders => {
+                if input.pressed(KeyCode::Escape) {
+                    self.leave_traders();
+                }
+            }
             Screen::Stash => {
                 if input.pressed(KeyCode::Escape) {
                     if self.modding.is_some() {
@@ -481,6 +495,121 @@ impl Game {
         }
     }
 
+    fn fence_seed(&self) -> u64 {
+        self.profile.stats.raids as u64 + 1
+    }
+
+    fn leave_traders(&mut self) {
+        let mut ctx = InvCtx {
+            equipment: &mut self.profile.equipment,
+            stash: Some(&mut self.profile.stash),
+            loot: None,
+            loot_name: String::new(),
+            in_raid: false,
+            sell_to: None,
+        };
+        self.inv.cancel(&mut ctx);
+        self.screen = Screen::MainMenu;
+        self.save();
+    }
+
+    fn traders_screen_ui(&mut self, ui: &mut egui::Ui) {
+        use ui::traders::{TraderAction, TraderTab};
+        if ui::traders::frame(ui, &mut self.traders_ui, &self.profile) {
+            self.leave_traders();
+            return;
+        }
+        let trader = self.traders_ui.selected;
+        let offers = crate::traders::offers(trader, self.fence_seed());
+        let mut action = None;
+        let mut sold = Vec::new();
+        let tab = self.traders_ui.tab;
+        egui::CentralPanel::default_margins().show(ui, |ui| {
+            ui::traders::header(ui, &mut self.traders_ui, &self.profile);
+            match tab {
+                TraderTab::Buy => action = ui::traders::buy_tab(ui, &self.profile, &offers),
+                TraderTab::Tasks => action = ui::traders::tasks_tab(ui, &self.profile, trader),
+                TraderTab::Sell => {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{} buys {}. Right-click an item to sell it, or Ctrl+click to sell instantly.",
+                            trader.name(),
+                            trader.buys_label()
+                        ))
+                        .color(ui::style::TEXT_DIM),
+                    );
+                    let mut ctx = InvCtx {
+                        equipment: &mut self.profile.equipment,
+                        stash: Some(&mut self.profile.stash),
+                        loot: None,
+                        loot_name: String::new(),
+                        in_raid: false,
+                        sell_to: Some(trader),
+                    };
+                    let inv = &mut self.inv;
+                    egui::ScrollArea::vertical().id_salt("sell_scroll").show(ui, |ui| {
+                        inv.grid(ui, &ctx, GridRef::Stash);
+                    });
+                    for a in inv.end(ui.ctx(), &mut ctx) {
+                        if let InvAction::Sell(uid) = a {
+                            sold.push(uid);
+                        }
+                    }
+                }
+            }
+        });
+        for uid in sold {
+            let name = self.profile.stash.get(uid).map(|p| p.item.name()).unwrap_or("item");
+            match crate::traders::sell(&mut self.profile.traders, &mut self.profile.stash, trader, uid) {
+                Ok(p) => {
+                    self.traders_ui.status = Some((format!("Sold {name} for {}", ui::inventory::value_label(p)), false))
+                }
+                Err(e) => self.traders_ui.status = Some((e, true)),
+            }
+            self.save();
+        }
+        let Some(action) = action else { return };
+        let status = match action {
+            TraderAction::Buy(i) => match offers.get(i) {
+                Some(o) => {
+                    let unlocked = o.unlocked_by.is_none_or(|q| self.profile.quests.is_completed(q));
+                    crate::traders::buy(&mut self.profile.traders, &mut self.profile.stash, o, unlocked)
+                        .map(|_| format!("Bought {} - delivered to your stash", o.label()))
+                }
+                None => Err("Offer no longer available".into()),
+            },
+            TraderAction::Accept(id) => match crate::quests::get(id) {
+                Some(q) => {
+                    self.profile.quests.accept(q);
+                    Ok(format!("Task \"{}\" accepted", q.name))
+                }
+                None => Err("Unknown task".into()),
+            },
+            TraderAction::HandOver(id, i) => match crate::quests::get(id) {
+                Some(q) => self.profile.quests.hand_over(q, i, &mut self.profile.stash),
+                None => Err("Unknown task".into()),
+            },
+            TraderAction::TurnIn(id) => match crate::quests::get(id) {
+                Some(q) => self
+                    .profile
+                    .quests
+                    .turn_in(
+                        q,
+                        &mut self.profile.stash,
+                        &mut self.profile.traders,
+                        &self.profile.hideout,
+                    )
+                    .map(|_| format!("Task \"{}\" complete! Rewards sent to your stash.", q.name)),
+                None => Err("Unknown task".into()),
+            },
+        };
+        self.traders_ui.status = Some(match status {
+            Ok(m) => (m, false),
+            Err(e) => (e, true),
+        });
+        self.save();
+    }
+
     fn leave_stash(&mut self) {
         let mut ctx = InvCtx {
             equipment: &mut self.profile.equipment,
@@ -488,6 +617,7 @@ impl Game {
             loot: None,
             loot_name: String::new(),
             in_raid: false,
+            sell_to: None,
         };
         self.inv.cancel(&mut ctx);
         self.screen = Screen::MainMenu;
@@ -559,6 +689,7 @@ impl Game {
             }
             Screen::Raid => self.raid_ui(ui),
             Screen::Hideout => self.hideout_ui(ui),
+            Screen::Traders => self.traders_screen_ui(ui),
             Screen::Summary => match &self.last_outcome {
                 Some(o) => {
                     if ui::menu::raid_summary(ui, o) {
@@ -574,6 +705,11 @@ impl Game {
         let action = ui::menu::main_menu(ui, &self.profile, self.notice.as_deref(), &mut self.confirm_reset, true);
         match action {
             Some(MainMenuAction::StartRaid) => self.start_raid(),
+            Some(MainMenuAction::Traders) => {
+                self.screen = Screen::Traders;
+                self.traders_ui.status = None;
+                self.notice = None;
+            }
             Some(MainMenuAction::Stash) => {
                 self.screen = Screen::Stash;
                 self.notice = None;
@@ -636,6 +772,7 @@ impl Game {
             loot: None,
             loot_name: String::new(),
             in_raid: false,
+            sell_to: None,
         };
         let inv = &mut self.inv;
         egui::Panel::left("stash_equipment").exact_size(720.0).show(ui, |ui| {
@@ -737,6 +874,7 @@ impl Game {
                 loot,
                 loot_name,
                 in_raid: true,
+                sell_to: None,
             };
             let inv = &mut self.inv;
             egui::CentralPanel::no_frame()
@@ -892,7 +1030,7 @@ impl Game {
                     }
                 }
             }
-            Screen::Summary => {}
+            Screen::Summary | Screen::Traders => {}
         }
         FrameScene {
             draw_world,
@@ -921,6 +1059,9 @@ impl Game {
         self.close_modding();
         if self.screen == Screen::Stash {
             self.leave_stash();
+        }
+        if self.screen == Screen::Traders {
+            self.leave_traders();
         }
         if let Some(raid) = self.raid.as_mut() {
             raid.abandon();
@@ -1001,6 +1142,17 @@ impl Game {
     pub fn debug_screen(&mut self, name: &str) {
         match name {
             "stash" => self.screen = Screen::Stash,
+            "traders" => self.screen = Screen::Traders,
+            "sell" => {
+                self.screen = Screen::Traders;
+                self.traders_ui.tab = ui::traders::TraderTab::Sell;
+                self.traders_ui.selected = crate::traders::TraderId::Therapist;
+            }
+            "tasks" => {
+                self.screen = Screen::Traders;
+                self.traders_ui.tab = ui::traders::TraderTab::Tasks;
+                self.traders_ui.selected = crate::traders::TraderId::Mechanic;
+            }
             "hideout" => self.enter_hideout(),
             "station" => {
                 self.enter_hideout();
@@ -1031,6 +1183,7 @@ impl Game {
                     kills: 3,
                     value_in: 180_000,
                     value_out: 342_000,
+                    tasks: vec!["Debut: Scavs killed 3/5 (+3)".into()],
                 });
                 self.screen = Screen::Summary;
             }

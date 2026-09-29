@@ -6,3 +6,4 @@ pub mod inventory;
 pub mod menu;
 pub mod modding;
 pub mod style;
+pub mod traders;

@@ -271,6 +271,30 @@ fn extract_panel(p: &egui::Painter, screen: Rect, raid: &Raid) {
         ));
         y += 19.0;
     }
+    let tasks = raid.quests.lines();
+    if !tasks.is_empty() {
+        y += 8.0;
+        text(
+            p,
+            Pos2::new(screen.right() - 16.0, y),
+            Align2::RIGHT_TOP,
+            "TASKS",
+            13.0,
+            Color32::from_rgb(150, 210, 255),
+        );
+        y += 20.0;
+        for t in tasks.iter().take(6) {
+            text(
+                p,
+                Pos2::new(screen.right() - 16.0, y),
+                Align2::RIGHT_TOP,
+                t,
+                13.0,
+                Color32::from_rgb(200, 225, 245),
+            );
+            y += 18.0;
+        }
+    }
 }
 
 pub fn draw_hud(

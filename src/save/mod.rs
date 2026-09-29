@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::hideout::HideoutState;
 use crate::inventory::{starter_profile_items, Equipment, Grid};
+use crate::quests::QuestLog;
 use crate::raid::{OutcomeKind, RaidOutcome};
+use crate::traders::TradersState;
 
 pub const SAVE_VERSION: u32 = 1;
 
@@ -52,6 +54,10 @@ pub struct Profile {
     pub stats: Stats,
     #[serde(default)]
     pub settings: SavedSettings,
+    #[serde(default)]
+    pub traders: TradersState,
+    #[serde(default)]
+    pub quests: QuestLog,
 }
 
 impl Profile {
@@ -64,6 +70,8 @@ impl Profile {
             hideout: HideoutState::default(),
             stats: Stats::default(),
             settings: SavedSettings::default(),
+            traders: TradersState::default(),
+            quests: QuestLog::default(),
         }
     }
 }
@@ -89,6 +97,8 @@ pub fn apply_raid_result(profile: &mut Profile, mut equipment: Equipment, outcom
         }
     }
     profile.equipment = equipment;
+    // Traders restock limited offers (and Fence rotates) after every raid.
+    profile.traders.restock();
 }
 
 /// Save file location: `$VOXEL_RAID_SAVE` or `voxel_raid_save.json` in the working directory.
@@ -168,6 +178,7 @@ mod tests {
             kills: 2,
             value_in: 100,
             value_out: 400,
+            tasks: vec![],
         };
         apply_raid_result(&mut p, eq, &survived);
         assert_eq!(p.stats.survived, 1);
@@ -192,6 +203,19 @@ mod tests {
         assert!(p.equipment.backpack.is_none());
         assert_eq!(p.equipment.total_value(), 0);
         assert_eq!(p.stats.raids, 2);
+    }
+
+    #[test]
+    fn loads_saves_from_before_traders_and_tasks() {
+        let p = Profile::new_player();
+        let mut v = serde_json::to_value(&p).unwrap();
+        let obj = v.as_object_mut().unwrap();
+        obj.remove("traders");
+        obj.remove("quests");
+        let old: Profile = serde_json::from_value(v).expect("old saves must still load");
+        assert_eq!(old.stash, p.stash);
+        assert!(old.quests.records.is_empty());
+        assert!(old.traders.standings.is_empty());
     }
 
     #[test]

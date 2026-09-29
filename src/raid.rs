@@ -11,10 +11,11 @@ use crate::game::{gather_move_input, Settings};
 use crate::input::Input;
 use crate::inventory::{loot, EquipSlot, Equipment, Grid, GridRef, Item, ItemKind, MedKind};
 use crate::player::{BodyPart, Player};
+use crate::quests::{QuestEvent, QuestTracker};
 use crate::rng::Rng;
 use crate::weapons::armor::resolve_armor;
 use crate::weapons::ballistics::{self, humanoid_hitboxes, ray_hitbox, Hitbox, ShotOutcome, TargetBoxes, TargetId};
-use crate::weapons::{AmmoType, Caliber, GunState, ReloadState, Weapon};
+use crate::weapons::{AmmoType, Caliber, GunState, ReceiverId, ReloadState, Weapon};
 use crate::world::gen::{generate_raid_map, ExtractPoint, MapInfo};
 use crate::world::{ContainerKind, World};
 
@@ -74,6 +75,8 @@ pub struct RaidOutcome {
     pub kills: u32,
     pub value_in: u64,
     pub value_out: u64,
+    /// Task progress made during the raid.
+    pub tasks: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -122,6 +125,8 @@ pub struct Raid {
     pub value_in: u64,
     pub finished: Option<RaidOutcome>,
     pub show_extracts: f32,
+    /// Live progress of the player's raid tasks.
+    pub quests: QuestTracker,
 }
 
 fn yaw_towards(from: Vec3, to: Vec3) -> f32 {
@@ -140,7 +145,7 @@ pub fn corpse_box(s: &Scav) -> Hitbox {
 }
 
 impl Raid {
-    pub fn new(seed: u64, equipment: Equipment) -> Self {
+    pub fn new(seed: u64, equipment: Equipment, quests: QuestTracker) -> Self {
         let (world, map) = generate_raid_map(seed);
         let mut rng = Rng::new(seed ^ 0xABCD_EF01);
         let spawn = if map.player_spawns.is_empty() {
@@ -230,6 +235,7 @@ impl Raid {
             value_in,
             finished: None,
             show_extracts: 10.0,
+            quests,
         };
         let names: Vec<String> = raid.extracts.iter().map(|e| e.name.clone()).collect();
         raid.message(format!("Extracts: {}", names.join(", ")), [140, 220, 140]);
@@ -416,6 +422,7 @@ impl Raid {
                 if !self.containers.contains_key(&p) {
                     let g = loot::container_loot(kind, &mut self.rng);
                     self.containers.insert(p, g);
+                    self.quest_event(QuestEvent::Search(kind));
                 }
                 self.open_loot = Some(LootRef::Container(p));
             }
@@ -525,6 +532,8 @@ impl Raid {
             return;
         }
         let value_out = if matches!(kind, OutcomeKind::Survived(_)) {
+            let armored = self.equipment.helmet.is_some() && self.equipment.armor.is_some();
+            self.quest_event(QuestEvent::Extracted { armored });
             self.equipment.total_value()
         } else {
             0
@@ -535,6 +544,7 @@ impl Raid {
             kills: self.kills,
             value_in: self.value_in,
             value_out,
+            tasks: self.quests.summary(),
         });
     }
 
@@ -933,9 +943,12 @@ impl Raid {
         let muzzle = self.muzzle_world();
         self.effects.tracer(muzzle, out.end, ammo.def().tracer);
         self.apply_shot_effects(&out, dir);
+        for _ in out.blocks.iter().filter(|b| b.destroyed) {
+            self.quest_event(QuestEvent::Destroyed);
+        }
         if let Some(hit) = out.entity {
             if let TargetId::Scav(i) = hit.target {
-                self.damage_scav(i, hit.part, hit.damage, hit.pen, ammo, eye);
+                self.damage_scav(i, hit.part, hit.damage, hit.pen, ammo, eye, receiver);
             }
         }
 
@@ -987,7 +1000,24 @@ impl Raid {
         }
     }
 
-    fn damage_scav(&mut self, i: usize, part: BodyPart, damage: f32, pen: f32, ammo: AmmoType, from: Vec3) {
+    /// Advance raid tasks and announce progress.
+    fn quest_event(&mut self, ev: QuestEvent) {
+        for m in self.quests.apply(ev) {
+            self.message(m, [150, 210, 255]);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn damage_scav(
+        &mut self,
+        i: usize,
+        part: BodyPart,
+        damage: f32,
+        pen: f32,
+        ammo: AmmoType,
+        from: Vec3,
+        receiver: ReceiverId,
+    ) {
         let time = self.time;
         let s = &mut self.scavs[i];
         if !s.alive() {
@@ -1011,6 +1041,10 @@ impl Raid {
                 format!("Killed {} ({}, {})", name, part.name(), ammo.def().short),
                 [230, 110, 90],
             );
+            self.quest_event(QuestEvent::Kill {
+                headshot: part == BodyPart::Head,
+                receiver: Some(receiver),
+            });
         } else if res.blocked {
             let eye = s.eye();
             self.effects.sparks(from.lerp(eye, 0.98), Vec3::Y, &mut self.rng);
@@ -1089,7 +1123,7 @@ mod tests {
     /// A raid with a flat, empty arena carved out around the player.
     fn arena() -> Raid {
         let (_, eq) = crate::inventory::starter_profile_items();
-        let mut raid = Raid::new(7, eq);
+        let mut raid = Raid::new(7, eq, QuestTracker::default());
         let w = &mut raid.world;
         for x in 40..120 {
             for z in 40..120 {
@@ -1263,6 +1297,39 @@ mod tests {
     }
 
     #[test]
+    fn raid_kills_advance_accepted_tasks() {
+        let mut log = crate::quests::QuestLog::default();
+        log.accept(crate::quests::get("prapor_debut").unwrap());
+        let mut raid = arena();
+        raid.quests = log.tracker();
+        let i = place_scav(&mut raid, Vec3::new(60.5, 21.0, 70.5));
+        let stats = raid.weapon().unwrap().stats();
+        for _ in 0..30 {
+            if !raid.scavs[i].alive() {
+                break;
+            }
+            let target = raid.scavs[i].pos + Vec3::Y * 1.3;
+            let d = target - raid.player.eye_pos();
+            raid.player.yaw = (-d.x).atan2(-d.z);
+            raid.player.pitch = (d.y / Vec3::new(d.x, 0.0, d.z).length()).atan();
+            raid.gun.ads = 1.0;
+            raid.gun.shot_index = 0;
+            raid.fire_player_shot(stats);
+        }
+        assert!(!raid.scavs[i].alive());
+        assert!(
+            raid.messages.iter().any(|m| m.text.contains("Debut")),
+            "HUD should announce progress"
+        );
+        raid.abandon();
+        let out = raid.finished.clone().unwrap();
+        assert_eq!(out.tasks.len(), 1);
+        log.merge(&raid.quests);
+        let q = crate::quests::get("prapor_debut").unwrap();
+        assert_eq!(log.progress(q, 0, &Default::default()), 1);
+    }
+
+    #[test]
     fn gunshots_alert_scavs() {
         let mut raid = arena();
         let i = place_scav(&mut raid, Vec3::new(100.5, 21.0, 100.5));
@@ -1283,7 +1350,7 @@ mod soak {
         let input = Input::default();
         for seed in [1u64, 2, 3] {
             let (_, eq) = crate::inventory::starter_profile_items();
-            let mut raid = Raid::new(seed, eq);
+            let mut raid = Raid::new(seed, eq, QuestTracker::default());
             let start: Vec<Vec3> = raid.scavs.iter().map(|s| s.pos).collect();
             // Three minutes of game time at 30 Hz.
             for _ in 0..(30 * 180) {

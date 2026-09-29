@@ -4,7 +4,8 @@ A Minecraft / Escape-from-Tarkov hybrid written in Rust: blocky, fully destructi
 voxel maps combined with a hardcore extraction-shooter loop. Gear up from your stash,
 raid a procedurally generated town full of hostile scavs, loot crates and bodies,
 and reach an extraction point before you die. Everything you bring in is lost if you
-don't make it out. Back home, upgrade workbenches in your buildable underground
+don't make it out. Back home, trade with five traders, work through their task
+chains to raise your loyalty, upgrade workbenches in your buildable underground
 hideout and craft ammo and attachments from the junk you looted.
 
 Built with **wgpu 30.0.1**, **winit 0.30.13**, **glam 0.33.11** and
@@ -26,7 +27,7 @@ Other useful flags:
 |------|--------|
 | `--seed N` | Use a fixed seed for the next raid map |
 | `--save FILE` | Use a different save file |
-| `--screen stash\|raid\|loot\|summary\|hideout\|station` | Jump straight to a screen (debug) |
+| `--screen stash\|raid\|loot\|summary\|hideout\|station\|traders\|tasks\|sell` | Jump straight to a screen (debug) |
 | `--smoke-frames N` | Exit after N frames (used for automated smoke tests) |
 | `--screenshot out.png` | With `--smoke-frames`, save the last frame as PNG |
 | `--cam x,y,z,yaw,pitch` | Debug camera pose (y ≤ 0 means "stand on the ground") |
@@ -35,7 +36,7 @@ Other useful flags:
 `VOXEL_RAID_NO_VSYNC=1` disables vsync. **F12** saves a screenshot at any time,
 **F3** toggles the debug overlay (FPS, position, chunk/triangle counts).
 
-Tests: `cargo test` (52 unit/integration tests, including headless raid simulations).
+Tests: `cargo test` (64 unit/integration tests, including headless raid simulations).
 
 ## Controls
 
@@ -70,6 +71,16 @@ Tests: `cargo test` (52 unit/integration tests, including headless raid simulati
 | Double-click | Equip into the matching empty slot |
 | Right-click | Context menu: Modify, Load/Unload ammo, Use, Split, Empty, Equip, Discard |
 
+**Traders**
+
+| Input | Action |
+|-------|--------|
+| Click a trader | Switch trader; tabs for Buy, Sell and Tasks |
+| Buy | Purchases go to your stash (cash or barter price is paid from the stash) |
+| Sell tab: right-click / Ctrl+click | Sell a stash item (items the trader won't buy are dimmed) |
+| Tasks tab | Accept tasks, hand over items/weapons, collect rewards |
+| Esc | Back to the main menu |
+
 **Hideout**
 
 | Input | Action |
@@ -82,9 +93,10 @@ Tests: `cargo test` (52 unit/integration tests, including headless raid simulati
 
 ## How the game plays
 
-* **Main menu**: Start Raid, Stash, Hideout, Quit. Shows profile stats (raids,
-  survival rate, kills, extracted loot value) and your current loadout. If you end
-  up with no weapon at all you can request a free emergency kit.
+* **Main menu**: Start Raid, Stash, Traders, Hideout, Quit. Shows profile stats
+  (raids, survival rate, kills, extracted loot value), your current loadout and your
+  active tasks. If you end up with no weapon at all you can request a free emergency
+  kit.
 * **Stash**: a 10×30 Tarkov-style grid. Items occupy W×H cells (an AK is 5×2, a
   helmet 2×2, a Salewa 1×2...). Equip gear into slots: primary, holster, headwear,
   body armor, tactical rig, backpack, plus pockets and a 2×2 pouch. Right-click a
@@ -176,13 +188,52 @@ raids) and each level unlocks recipes and adds decor around the station:
 
 A new profile can immediately afford the level-1 workbench upgrade.
 
+### Traders
+
+| Trader | Sells | Buys (share of value) |
+|--------|-------|-----------------------|
+| **Prapor** | pistols, SMGs, rifles, ammo (AP from LL2, 7.62 BP after a task), magazines | weapons, ammo, attachments (55%) |
+| **Therapist** | medkits, surgical kits, duct tape, toolsets, barter deals | meds, barter goods, valuables (60%) |
+| **Mechanic** | sights, grips, stocks, muzzle devices, suppressors, weapon parts | attachments, weapons, barter goods (60%) |
+| **Ragman** | rigs, backpacks, helmets and armor up to class 5 | armor, helmets, rigs, backpacks (55%) |
+| **Fence** | 10 random used items, rotating after every raid | anything (40%) |
+
+Each trader (except Fence) has **loyalty levels 1–3**. Higher levels unlock better
+offers and need both **standing** (earned by completing that trader's tasks) and
+**trade volume** (roubles spent with or earned from them): LL2 needs 0.20 standing
+and 150 000 RUB, LL3 needs 0.45 and 500 000 RUB. Some offers are **barter trades**
+(e.g. 2 circuit boards → PBS-4 suppressor, a physical bitcoin → PSO-1 scope), and
+rare goods have **limited stock that restocks after every raid**. Everything you
+buy is delivered to your stash; a full stash blocks the purchase before you pay.
+
+### Tasks
+
+Sixteen tasks from Prapor, Therapist, Mechanic and Ragman form small chains (each
+unlocks the next; some also need a loyalty level). Accept them on a trader's Tasks
+tab. Objective types:
+
+* **Kill Scavs**: optionally headshots only, or with a specific weapon.
+* **Search containers** of a given kind (weapon boxes, medcases) in raids.
+* **Destroy blocks** with gunfire (ties into the destruction system).
+* **Survive and extract**, optionally wearing a helmet and body armor.
+* **Hand over items** from your stash (batteries, circuit boards, bitcoin...).
+* **Gunsmith**: hand over a weapon you modded to hit stat targets (e.g. a suppressed
+  AK-74N with a 4× optic, 45+ round magazine and ≤ 0.65° vertical recoil). The task
+  card checks your stash weapon against every requirement live.
+* **Hideout**: upgrade a station to a given level.
+
+Raid objectives update live (HUD messages, and **O** lists your tasks under the
+exits) and count even if you die; the raid summary lists the progress you made.
+Rewards are roubles, items, trader standing and, for some tasks, new trader offers
+(e.g. "Shootout Picnic" unlocks 7.62 BP ammo at Prapor).
+
 ## Architecture
 
 ```
 src/
   main.rs        winit ApplicationHandler, egui integration, CLI flags, frame loop
-  game.rs        screen state machine (menu/stash/raid/summary/hideout), raid lifecycle,
-                 saving, per-screen 3D scene assembly
+  game.rs        screen state machine (menu/stash/traders/raid/summary/hideout), raid
+                 lifecycle, trading/task actions, saving, per-screen 3D scene assembly
   raid.rs        a raid session: player, scavs, combat resolution, loot, healing,
                  extraction, outcome
   input.rs       keyboard/mouse state with per-frame edges
@@ -206,10 +257,14 @@ src/
                  starter kit, loot tables
   ui/            egui screens: style, HUD, main/pause/summary menus, drag & drop
                  inventory, modding screen, hideout HUD + station window
-  save/          JSON profile (stash, equipment, hideout, stats, settings), atomic
-                 writes, corrupt-save backup, raid-result application
+  save/          JSON profile (stash, equipment, hideout, traders, tasks, stats,
+                 settings), atomic writes, corrupt-save backup, raid-result application
   hideout/       stations, upgrade costs, recipes, crafting, bunker generation,
                  build mode and persistence of block edits
+  traders/       trader definitions, loyalty levels, catalogues (cash + barter,
+                 limited stock, task unlocks), Fence rotation, buying and selling
+  quests/        task database, objectives, availability, hand-overs, rewards, and
+                 the in-raid tracker that turns raid events into progress
 ```
 
 **Frame flow**: input events → `Game::update` (simulation for the active screen,
@@ -232,7 +287,8 @@ it back (or a stripped copy) through `save::apply_raid_result`.
 
 ## Milestones
 
-All five milestones are complete and each was committed separately:
+All five milestones are complete and each was committed separately, followed by a
+traders and tasks extension:
 
 1. **Engine and world**: camera, movement, gravity, AABB collision, 16³ chunked
    procedural raid map with buildings and cover, face-culled meshing, directional
@@ -247,6 +303,10 @@ All five milestones are complete and each was committed separately:
    loadouts, looting containers and bodies, extraction, loss on death, JSON saves.
 5. **Hideout**: walkable, buildable voxel hideout; upgradeable workbench, ammo press
    and medstation that cost looted items and unlock ammo/attachment recipes.
+6. **Traders and tasks** (extension): five traders with loyalty levels, cash and
+   barter offers, limited stock and selling; sixteen tasks with kill / search /
+   destroy / extract / hand-over / gunsmith / hideout objectives, live in-raid
+   tracking and rewards that feed back into trader loyalty.
 
 ## Known issues and limitations
 
@@ -260,6 +320,10 @@ All five milestones are complete and each was committed separately:
   (no scav-vs-scav fights; their bullets pass through other scavs).
 * The player is never blocked by scav bodies (no entity-vs-entity collision).
 * Health resets between raids, and crafting is instant (no timers).
+* There is no "found in raid" flag, so a few hand-over items can simply be bought
+  (at a loss) from another trader; tasks avoid most trader-sold items.
+* Traders restock per raid rather than on a real-time clock, and there is no flea
+  market or player level (loyalty uses standing and trade volume only).
 * Nested containers can only be browsed when equipped (use "Empty contents" on a
   backpack in the stash).
 * There is no Tarkov-style secure container: the spec says dying loses *everything*

@@ -134,7 +134,7 @@ impl AmmoType {
                 tracer: [255, 226, 150],
             },
             AmmoType::Hp545 => &AmmoDef {
-                name: "5.45x39 HP (HP)",
+                name: "5.45x39 HP",
                 short: "HP",
                 caliber: Caliber::C545x39,
                 class: AmmoClass::HollowPoint,
@@ -167,7 +167,7 @@ impl AmmoType {
                 tracer: [255, 226, 150],
             },
             AmmoType::Hp762 => &AmmoDef {
-                name: "7.62x39 HP (HP)",
+                name: "7.62x39 HP",
                 short: "HP",
                 caliber: Caliber::C762x39,
                 class: AmmoClass::HollowPoint,

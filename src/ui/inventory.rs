@@ -4,6 +4,7 @@ use egui::{Align2, Color32, FontId, Key, LayerId, Order, Rect, RichText, Sense, 
 
 use super::style;
 use crate::inventory::{Category, EquipSlot, Equipment, Grid, GridRef, Item, ItemKind};
+use crate::traders::{self, TraderId};
 use crate::weapons::AmmoType;
 
 pub const CELL: f32 = 44.0;
@@ -25,6 +26,7 @@ struct Dragged {
 
 #[derive(Clone, Copy)]
 enum MenuAction {
+    Sell,
     Discard,
     Split,
     Unload,
@@ -49,6 +51,7 @@ struct Frame {
 pub enum InvAction {
     Modify(Origin, u64),
     UseMed(GridRef, u64),
+    Sell(u64),
 }
 
 /// Everything the inventory UI may read and modify this frame.
@@ -58,6 +61,8 @@ pub struct InvCtx<'a> {
     pub loot: Option<&'a mut Grid>,
     pub loot_name: String,
     pub in_raid: bool,
+    /// Trader screen "Sell" tab: stash items can be sold to this trader.
+    pub sell_to: Option<TraderId>,
 }
 
 impl InvCtx<'_> {
@@ -345,17 +350,59 @@ impl InventoryUi {
             return;
         }
         let ctrl = ui.ctx().input(|i| i.modifiers.command || i.modifiers.ctrl);
-        if resp.clicked() && ctrl {
+        let in_stash = matches!(
+            origin,
+            Origin::Grid {
+                grid: GridRef::Stash,
+                ..
+            }
+        );
+        let sell = ctx
+            .sell_to
+            .filter(|_| in_stash)
+            .map(|t| (t, traders::sell_price(t, item)));
+        if resp.clicked() && ctrl && sell.is_some() {
+            self.frame.menu = Some((origin, item.uid, MenuAction::Sell));
+        } else if resp.clicked() && ctrl {
             self.frame.quick = Some((origin, item.uid));
         } else if resp.double_clicked() {
             self.frame.equip = Some((origin, item.uid));
         }
-        let resp = resp.on_hover_ui(|ui| tooltip(ui, item));
+        let resp = resp.on_hover_ui(|ui| {
+            tooltip(ui, item);
+            if let Some((t, price)) = &sell {
+                match price {
+                    Ok(p) => {
+                        ui.label(RichText::new(format!("{} pays {}", t.name(), value_label(*p))).color(style::GOOD))
+                    }
+                    Err(e) => ui.label(RichText::new(e).color(style::BAD)),
+                };
+            }
+        });
         let uid = item.uid;
         let mut chosen: Option<MenuAction> = None;
         resp.context_menu(|ui| {
             ui.label(RichText::new(item.name()).color(style::ACCENT));
             ui.separator();
+            if let Some((t, price)) = &sell {
+                match price {
+                    Ok(p) => {
+                        if ui
+                            .button(
+                                RichText::new(format!("Sell to {} for {}", t.name(), value_label(*p)))
+                                    .color(style::GOOD),
+                            )
+                            .clicked()
+                        {
+                            chosen = Some(MenuAction::Sell);
+                        }
+                    }
+                    Err(e) => {
+                        ui.label(RichText::new(e).color(style::TEXT_DIM));
+                    }
+                }
+                ui.separator();
+            }
             if let Some(w) = &item.weapon {
                 if !ctx.in_raid && ui.button("Modify").clicked() {
                     chosen = Some(MenuAction::Modify);
@@ -442,7 +489,12 @@ impl InventoryUi {
             .shrink(1.5);
             let id = egui::Id::new(("inv_item", p.item.uid));
             let resp = ui.interact(r, id, Sense::click_and_drag());
-            paint_item(&painter, r, &p.item, resp.hovered(), 1.0);
+            // In a trader's Sell tab, items they won't buy are dimmed.
+            let alpha = match ctx.sell_to {
+                Some(t) if g == GridRef::Stash && traders::sell_price(t, &p.item).is_err() => 0.35,
+                _ => 1.0,
+            };
+            paint_item(&painter, r, &p.item, resp.hovered(), alpha);
             let origin = Origin::Grid {
                 grid: g,
                 x: p.x,
@@ -721,6 +773,7 @@ impl InventoryUi {
     ) {
         match action {
             MenuAction::Modify => out.push(InvAction::Modify(origin, uid)),
+            MenuAction::Sell => out.push(InvAction::Sell(uid)),
             MenuAction::Use => {
                 if let Origin::Grid { grid, .. } = origin {
                     out.push(InvAction::UseMed(grid, uid));

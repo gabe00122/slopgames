@@ -9,10 +9,12 @@ mod hideout;
 mod input;
 mod inventory;
 mod player;
+mod quests;
 mod raid;
 mod render;
 mod rng;
 mod save;
+mod traders;
 mod ui;
 mod weapons;
 mod world;
@@ -74,7 +76,7 @@ fn parse_args() -> Args {
             "--help" | "-h" => {
                 println!(
                     "voxel-raid [--save FILE] [--seed N]\n\
-                     debug: [--smoke-frames N] [--screenshot out.png] [--screen stash|raid|loot|summary|hideout]\n\
+                     debug: [--smoke-frames N] [--screenshot out.png] [--screen stash|raid|loot|summary|hideout|station|traders|tasks]\n\
                      \x20      [--cam x,y,z,yaw,pitch] [--force-ads] [--mod-demo]"
                 );
                 std::process::exit(0);

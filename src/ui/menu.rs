@@ -18,6 +18,7 @@ pub enum PauseAction {
 pub enum MainMenuAction {
     StartRaid,
     Stash,
+    Traders,
     Hideout,
     Quit,
     EmergencyKit,
@@ -125,6 +126,21 @@ pub fn main_menu(
                 action = Some(MainMenuAction::Stash);
             }
             ui.add_space(6.0);
+            let ready: usize = crate::quests::all()
+                .iter()
+                .filter(|q| {
+                    profile.quests.view(q, &profile.traders, &profile.hideout) == crate::quests::QuestView::Ready
+                })
+                .count();
+            let label = if ready > 0 {
+                format!("TRADERS  ({ready} task{} ready)", if ready == 1 { "" } else { "s" })
+            } else {
+                "TRADERS".to_string()
+            };
+            if style::big_button(ui, &label, w).clicked() {
+                action = Some(MainMenuAction::Traders);
+            }
+            ui.add_space(6.0);
             let hideout = ui.add_enabled(
                 hideout_available,
                 egui::Button::new(RichText::new("HIDEOUT").size(19.0)).min_size([w, 44.0].into()),
@@ -210,6 +226,16 @@ pub fn main_menu(
                     .items
                     .iter()
                     .any(|p| matches!(p.item.kind, crate::inventory::ItemKind::Weapon(_)));
+            ui.add_space(16.0);
+            ui.label(RichText::new("ACTIVE TASKS").color(style::ACCENT));
+            let lines = profile.quests.active_lines(&profile.hideout);
+            if lines.is_empty() {
+                ui.label(RichText::new("None - visit the traders to pick some up.").color(style::TEXT_DIM));
+            }
+            for (name, status) in lines.iter().take(8) {
+                ui.label(RichText::new(name).strong());
+                ui.label(RichText::new(format!("  {status}")).size(12.0).color(style::TEXT_DIM));
+            }
             if !has_weapon_anywhere {
                 ui.add_space(8.0);
                 ui.label("Broke? The Fence will spot you a basic kit.");
@@ -289,6 +315,13 @@ pub fn raid_summary(ui: &mut egui::Ui, outcome: &RaidOutcome) -> bool {
                         }
                     }
                 });
+            if !outcome.tasks.is_empty() {
+                ui.add_space(10.0);
+                ui.label(RichText::new("TASK PROGRESS").color(style::ACCENT));
+                for t in &outcome.tasks {
+                    ui.label(RichText::new(t).color(Color32::from_rgb(150, 210, 255)));
+                }
+            }
             ui.add_space(16.0);
             ui.vertical_centered(|ui| {
                 if style::big_button(ui, "Continue", 300.0).clicked() {
