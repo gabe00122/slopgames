@@ -453,6 +453,9 @@ pub fn generate() -> Atlas {
     Atlas { levels, avg_colors }
 }
 
-pub fn avg_color(atlas_colors: &[[u8; 4]], tile: Tile) -> [u8; 4] {
-    atlas_colors[tile as usize]
+static TILE_COLORS: std::sync::OnceLock<Vec<[u8; 4]>> = std::sync::OnceLock::new();
+
+/// Average colour of a tile (for particles, icons and the like).
+pub fn tile_color(tile: Tile) -> [u8; 4] {
+    TILE_COLORS.get_or_init(|| generate().avg_colors)[tile as usize]
 }

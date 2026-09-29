@@ -2,6 +2,8 @@
 //!
 //! Entry point: window + event loop (winit), renderer (wgpu), UI (egui).
 
+mod ai;
+mod effects;
 mod game;
 mod input;
 mod player;
@@ -9,6 +11,7 @@ mod raid;
 mod render;
 mod rng;
 mod ui;
+mod weapons;
 mod world;
 
 use std::sync::Arc;
@@ -34,6 +37,7 @@ struct Args {
     screenshot: Option<String>,
     /// Debug camera pose "x,y,z,yaw,pitch" (enables noclip).
     cam: Option<[f32; 5]>,
+    force_ads: bool,
 }
 
 fn parse_args() -> Args {
@@ -44,6 +48,7 @@ fn parse_args() -> Args {
             "--smoke-frames" => args.smoke_frames = it.next().and_then(|v| v.parse().ok()),
             "--seed" => args.seed = it.next().and_then(|v| v.parse().ok()),
             "--screenshot" => args.screenshot = it.next(),
+            "--force-ads" => args.force_ads = true,
             "--cam" => {
                 let v: Vec<f32> = it
                     .next()
@@ -181,6 +186,7 @@ impl ApplicationHandler for App {
         if let Some(c) = self.args.cam {
             game.debug_camera(c);
         }
+        game.debug_force_ads = self.args.force_ads;
         self.state = Some(Running {
             window,
             renderer,

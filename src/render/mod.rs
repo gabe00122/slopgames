@@ -2,6 +2,7 @@
 
 pub mod atlas;
 pub mod mesher;
+pub mod models;
 pub mod vertex;
 
 use std::collections::HashMap;
@@ -161,7 +162,6 @@ pub struct Renderer {
     can_screenshot: bool,
     /// Save the next presented frame to this PNG path.
     pub screenshot_request: Option<std::path::PathBuf>,
-    pub atlas_colors: Vec<[u8; 4]>,
     pub adapter_info: String,
     pub stats_chunks_drawn: usize,
     pub stats_triangles: usize,
@@ -483,7 +483,6 @@ impl Renderer {
             srgb_format,
             can_screenshot,
             screenshot_request: None,
-            atlas_colors: atlas_data.avg_colors,
             adapter_info,
             stats_chunks_drawn: 0,
             stats_triangles: 0,

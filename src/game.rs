@@ -1,11 +1,13 @@
 //! Top-level game state: screens, simulation update and scene assembly.
 
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Vec2, Vec3};
 use winit::keyboard::KeyCode;
 
+use crate::ai::ScavState;
 use crate::input::Input;
 use crate::player::MoveInput;
-use crate::raid::Raid;
+use crate::raid::{PlayerKit, Raid};
+use crate::render::models::{self, HumanoidLook, HumanoidPose, ViewmodelParams};
 use crate::render::{FrameScene, MeshBuilder, Renderer};
 use crate::rng::Rng;
 use crate::ui;
@@ -60,6 +62,10 @@ pub struct Game {
     world_dirty_reload: bool,
     pub rng: Rng,
     pub time: f32,
+    /// Smoothed mouse delta for weapon sway.
+    sway: Vec2,
+    /// Debug: keep the weapon aimed down sights (screenshots).
+    pub debug_force_ads: bool,
 }
 
 impl Game {
@@ -78,6 +84,8 @@ impl Game {
             world_dirty_reload: false,
             rng,
             time: 0.0,
+            sway: Vec2::ZERO,
+            debug_force_ads: false,
         };
         game.start_raid(seed);
         game
@@ -85,7 +93,7 @@ impl Game {
 
     pub fn start_raid(&mut self, seed: u64) {
         let t0 = std::time::Instant::now();
-        self.raid = Some(Raid::new(seed));
+        self.raid = Some(Raid::new(seed, PlayerKit::default_kit()));
         log::info!(
             "Generated raid map (seed {seed}) in {:.1} ms",
             t0.elapsed().as_secs_f32() * 1000.0
@@ -96,7 +104,10 @@ impl Game {
 
     /// Should the OS cursor be captured for mouse-look?
     pub fn wants_cursor_grab(&self) -> bool {
-        self.raid.is_some() && !self.paused
+        match &self.raid {
+            Some(r) => !self.paused && r.dead.is_none(),
+            None => false,
+        }
     }
 
     pub fn update(&mut self, dt: f32, real_dt: f32, input: &Input, renderer: &mut Renderer) {
@@ -111,6 +122,8 @@ impl Game {
         if input.pressed(KeyCode::Escape) {
             self.paused = !self.paused;
         }
+        let target_sway = Vec2::new(-input.mouse_delta.x, input.mouse_delta.y) * 0.00035;
+        self.sway += (target_sway.clamp(Vec2::splat(-0.03), Vec2::splat(0.03)) - self.sway) * (1.0 - (-10.0 * dt).exp());
 
         if let Some(raid) = self.raid.as_mut() {
             if self.world_dirty_reload {
@@ -118,22 +131,26 @@ impl Game {
                 self.world_dirty_reload = false;
             }
             if !self.paused {
-                raid.time += dt;
-                let look = input.mouse_delta * self.settings.sensitivity;
-                raid.player.look(-look.x, -look.y);
-                if input.pressed(KeyCode::KeyN) {
-                    raid.player.noclip = !raid.player.noclip;
+                raid.update(dt, input, &self.settings, true);
+                if self.debug_force_ads {
+                    raid.gun.ads = 1.0;
                 }
-                let mv = gather_move_input(input);
-                raid.player.update(&raid.world, &mv, dt);
             }
             renderer.sync_world(&mut raid.world);
         }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
+        let mut restart = false;
         if let Some(raid) = &self.raid {
             ui::hud::draw_hud(ui, raid, &self.settings, &self.stats, &self.adapter_info);
+            if raid.dead.is_some() && ui::hud::death_overlay(ui, raid) {
+                restart = true;
+            }
+        }
+        if restart {
+            let seed = self.rng.next_u64();
+            self.start_raid(seed);
         }
         if self.paused {
             match ui::menu::pause_menu(ui) {
@@ -159,14 +176,38 @@ impl Game {
     pub fn build_scene(&mut self, aspect: f32) -> FrameScene<'_> {
         self.dynamic.clear();
         self.viewmodel.clear();
-        let fov = self.settings.fov_deg.to_radians();
-        let (view_proj, cam_pos, draw_world) = match &self.raid {
-            Some(raid) => {
-                let proj = crate::render::perspective(fov, aspect, 0.05, 400.0);
-                (proj * raid.player.view_matrix(), raid.player.eye_pos(), true)
+        let mut view_proj = glam::Mat4::IDENTITY;
+        let mut cam_pos = Vec3::ZERO;
+        let mut draw_world = false;
+        let mut vm_proj = None;
+        if let Some(raid) = &self.raid {
+            draw_world = true;
+            let fov = (self.settings.fov_deg / raid.zoom()).to_radians();
+            let proj = crate::render::perspective(fov, aspect, 0.05, 400.0);
+            view_proj = proj * raid.player.view_matrix();
+            cam_pos = raid.player.eye_pos();
+            build_raid_entities(&mut self.dynamic, raid);
+            raid.effects.build(&mut self.dynamic);
+            if raid.dead.is_none() && !raid.is_scoped() {
+                if let Some(w) = raid.weapon() {
+                    let g = &raid.gun;
+                    let params = ViewmodelParams {
+                        ads: g.ads,
+                        kick: g.kick,
+                        reload: g.reload.map(|r| 1.0 - r.remaining / r.total.max(0.01)),
+                        draw: g.draw,
+                        sprint: if raid.player.sprinting { 1.0 } else { 0.0 },
+                        walk_phase: raid.player.walk_phase,
+                        moving: (raid.player.horizontal_speed() / 4.0).min(1.5),
+                        flash: g.flash > 0.0,
+                        sway: self.sway,
+                        time: self.time,
+                    };
+                    models::viewmodel(&mut self.viewmodel, w, &params);
+                    vm_proj = Some(crate::render::perspective(62f32.to_radians(), aspect, 0.01, 10.0));
+                }
             }
-            None => (Mat4::IDENTITY, Vec3::ZERO, false),
-        };
+        }
         FrameScene {
             draw_world,
             view_proj,
@@ -178,7 +219,7 @@ impl Game {
             ambient_boost: 0.0,
             time: self.time,
             dynamic: &self.dynamic,
-            viewmodel: None,
+            viewmodel: vm_proj.map(|p| (&self.viewmodel, p)),
         }
     }
 
@@ -187,11 +228,59 @@ impl Game {
     /// Place the camera at a fixed pose with noclip (debug / screenshots).
     pub fn debug_camera(&mut self, c: [f32; 5]) {
         if let Some(raid) = self.raid.as_mut() {
-            raid.player.pos = Vec3::new(c[0], c[1], c[2]);
+            // A non-positive y means "stand on the ground here" (normal physics).
+            let ground = c[1] <= 0.0;
+            let y = if ground {
+                raid.world.top_solid_y(c[0].floor() as i32, c[2].floor() as i32) as f32 + 1.0
+            } else {
+                c[1]
+            };
+            raid.player.pos = Vec3::new(c[0], y, c[2]);
             raid.player.yaw = c[3];
             raid.player.pitch = c[4];
-            raid.player.noclip = true;
+            raid.player.noclip = !ground;
+            // Bring a few scavs in front of the camera for inspection.
+            let fwd = raid.player.forward_flat();
+            let right = raid.player.right_flat();
+            for (k, s) in raid.scavs.iter_mut().take(3).enumerate() {
+                let p = raid.player.pos + fwd * (6.0 + k as f32 * 3.0) + right * (k as f32 - 1.0) * 2.5;
+                let y = raid.world.top_solid_y(p.x.floor() as i32, p.z.floor() as i32) + 1;
+                s.pos = Vec3::new(p.x, y as f32, p.z);
+                s.home = s.pos;
+                let d = raid.player.pos - s.pos;
+                s.yaw = (-d.x).atan2(-d.z);
+            }
         }
+    }
+}
+
+fn build_raid_entities(mb: &mut MeshBuilder, raid: &Raid) {
+    let cam = raid.player.eye_pos();
+    for s in &raid.scavs {
+        if s.pos.distance(cam) > 190.0 {
+            continue;
+        }
+        let dead = s.state == ScavState::Dead;
+        let pose = HumanoidPose {
+            feet: s.pos,
+            yaw: s.yaw,
+            crouch: s.crouch,
+            walk_phase: s.walk_phase,
+            moving: Vec3::new(s.vel.x, 0.0, s.vel.z).length() > 0.3,
+            aiming: s.state == ScavState::Engage,
+            aim_pitch: s.aim_pitch,
+            dead,
+            hit_flash: s.hit_flash > 0.0,
+        };
+        let look = HumanoidLook {
+            jacket: s.look.jacket,
+            pants: s.look.pants,
+            skin: s.look.skin,
+            hat: s.look.hat,
+            helmet: s.helmet.is_some(),
+            armor: s.armor.is_some(),
+        };
+        models::humanoid(mb, &pose, &look, Some(&s.weapon));
     }
 }
 

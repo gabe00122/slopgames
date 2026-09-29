@@ -173,7 +173,7 @@ static BLOCK_INFO: [BlockInfo; BLOCK_COUNT] = [
     info("Asphalt", true, true, 300.0, 80.0, all(Tile::Asphalt)),
     info("Concrete", true, true, 450.0, 90.0, all(Tile::Concrete)),
     info("Brick", true, true, 180.0, 45.0, all(Tile::Brick)),
-    info("Wood Planks", true, true, 60.0, 12.0, all(Tile::Planks)),
+    info("Wood Planks", true, true, 60.0, 10.0, all(Tile::Planks)),
     info("Log", true, true, 100.0, 25.0, [Tile::LogTop, Tile::LogSide, Tile::LogTop]),
     info("Leaves", true, false, 8.0, 2.0, all(Tile::Leaves)),
     info("Sheet Metal", true, true, 220.0, 30.0, all(Tile::Metal)),
