@@ -136,8 +136,7 @@ impl ArmorState {
 #[derive(Clone, Copy, Debug)]
 pub struct ArmorResult {
     pub damage: f32,
-    pub penetrated: bool,
-    /// Armor absorbed the hit (for feedback).
+    /// Armor absorbed the hit (blunt damage only).
     pub blocked: bool,
 }
 
@@ -152,14 +151,12 @@ pub fn resolve_armor(
     let Some(a) = armor else {
         return ArmorResult {
             damage,
-            penetrated: true,
             blocked: false,
         };
     };
     if !a.kind.covers(part) || a.durability <= 0.0 {
         return ArmorResult {
             damage,
-            penetrated: true,
             blocked: false,
         };
     }
@@ -171,14 +168,12 @@ pub fn resolve_armor(
         a.durability = (a.durability - damage * 0.12 - 1.0).max(0.0);
         ArmorResult {
             damage: damage * (1.0 - 0.04 * def.class as f32),
-            penetrated: true,
             blocked: false,
         }
     } else {
         a.durability = (a.durability - pen * 0.18 - 2.0).max(0.0);
         ArmorResult {
             damage: damage * 0.18,
-            penetrated: false,
             blocked: true,
         }
     }
@@ -196,11 +191,11 @@ mod tests {
         let mut ap_pens = 0;
         for _ in 0..trials {
             let mut a = ArmorState::new(ArmorKind::Kora);
-            if resolve_armor(Some(&mut a), BodyPart::Thorax, 76.0, 9.0, &mut rng).penetrated {
+            if !resolve_armor(Some(&mut a), BodyPart::Thorax, 76.0, 9.0, &mut rng).blocked {
                 hp_pens += 1;
             }
             let mut a = ArmorState::new(ArmorKind::Kora);
-            if resolve_armor(Some(&mut a), BodyPart::Thorax, 43.0, 52.0, &mut rng).penetrated {
+            if !resolve_armor(Some(&mut a), BodyPart::Thorax, 43.0, 52.0, &mut rng).blocked {
                 ap_pens += 1;
             }
         }
@@ -213,7 +208,7 @@ mod tests {
         let mut rng = Rng::new(1);
         let mut a = ArmorState::new(ArmorKind::Gzhel);
         let r = resolve_armor(Some(&mut a), BodyPart::LeftLeg, 50.0, 5.0, &mut rng);
-        assert!(r.penetrated);
+        assert!(!r.blocked);
         assert_eq!(r.damage, 50.0);
     }
 }

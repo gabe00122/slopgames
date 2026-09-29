@@ -6,6 +6,7 @@ use glam::{Mat4, Vec2, Vec3};
 use winit::keyboard::KeyCode;
 
 use crate::ai::ScavState;
+use crate::hideout::world::{HideoutInteract, HideoutSession};
 use crate::input::Input;
 use crate::inventory::{EquipSlot, GridParts, GridRef, Item, ItemKind};
 use crate::player::MoveInput;
@@ -63,6 +64,7 @@ pub enum Screen {
     Stash,
     Raid,
     Summary,
+    Hideout,
 }
 
 /// A weapon taken out of the stash/equipment while it is being modded.
@@ -77,6 +79,7 @@ pub struct Game {
     save_path: PathBuf,
     pub screen: Screen,
     pub raid: Option<Raid>,
+    pub hideout: Option<HideoutSession>,
     pub last_outcome: Option<RaidOutcome>,
     pub settings: Settings,
     pub paused: bool,
@@ -118,6 +121,7 @@ impl Game {
             save_path,
             screen: Screen::MainMenu,
             raid: None,
+            hideout: None,
             last_outcome: None,
             settings,
             paused: false,
@@ -156,6 +160,10 @@ impl Game {
     pub fn wants_cursor_grab(&self) -> bool {
         match (&self.raid, self.screen) {
             (Some(r), Screen::Raid) => !self.paused && !self.raid_inventory && r.dead.is_none() && r.finished.is_none(),
+            (_, Screen::Hideout) => match &self.hideout {
+                Some(h) => !self.paused && !h.stash_open && h.open_station.is_none() && self.modding.is_none(),
+                None => false,
+            },
             _ => false,
         }
     }
@@ -212,6 +220,172 @@ impl Game {
         self.world_clear = true;
         self.paused = false;
         self.save();
+    }
+
+    // ------------------------------------------------------------------
+    // Hideout
+    // ------------------------------------------------------------------
+
+    pub fn enter_hideout(&mut self) {
+        self.hideout = Some(HideoutSession::new(&self.profile.hideout));
+        self.screen = Screen::Hideout;
+        self.world_reload = true;
+        self.paused = false;
+        self.notice = None;
+    }
+
+    fn save_hideout_edits(&mut self) {
+        if let Some(h) = &self.hideout {
+            self.profile.hideout.edits = h.edits_vec();
+        }
+    }
+
+    fn leave_hideout(&mut self) {
+        self.close_modding();
+        self.close_stash_overlay();
+        self.save_hideout_edits();
+        self.hideout = None;
+        self.world_clear = true;
+        self.screen = Screen::MainMenu;
+        self.paused = false;
+        self.save();
+    }
+
+    fn close_stash_overlay(&mut self) {
+        let mut ctx = InvCtx {
+            equipment: &mut self.profile.equipment,
+            stash: Some(&mut self.profile.stash),
+            loot: None,
+            loot_name: String::new(),
+            in_raid: false,
+        };
+        self.inv.cancel(&mut ctx);
+        if let Some(h) = self.hideout.as_mut() {
+            if h.stash_open {
+                h.stash_open = false;
+                self.save_hideout_edits();
+                self.save();
+            }
+        }
+    }
+
+    fn update_hideout(&mut self, dt: f32, input: &Input, renderer: &mut Renderer) {
+        let Some(h) = self.hideout.as_mut() else {
+            self.screen = Screen::MainMenu;
+            return;
+        };
+        if self.world_reload {
+            renderer.load_world(&mut h.world);
+            self.world_reload = false;
+        }
+        let mut close_stash = false;
+        let mut close_mod = false;
+        if input.pressed(KeyCode::Escape) {
+            if self.modding.is_some() {
+                close_mod = true;
+            } else if h.stash_open {
+                close_stash = true;
+            } else if h.open_station.is_some() {
+                h.open_station = None;
+            } else {
+                self.paused = !self.paused;
+            }
+        } else if !self.paused && self.modding.is_none() {
+            if input.pressed(KeyCode::KeyE) {
+                if h.open_station.is_some() {
+                    h.open_station = None;
+                } else if !h.stash_open {
+                    match h.interaction() {
+                        Some(HideoutInteract::Stash) => h.stash_open = true,
+                        Some(HideoutInteract::Station(s)) => {
+                            h.open_station = Some(s);
+                            h.station_status = None;
+                        }
+                        None => {}
+                    }
+                }
+            } else if input.pressed(KeyCode::Tab) && h.open_station.is_none() {
+                if h.stash_open {
+                    close_stash = true;
+                } else {
+                    h.stash_open = true;
+                }
+            }
+        }
+        let accept = !self.paused && !h.stash_open && h.open_station.is_none() && self.modding.is_none();
+        if !self.paused {
+            h.update(dt, input, &self.settings, accept);
+        }
+        renderer.sync_world(&mut h.world);
+        if close_mod {
+            self.close_modding();
+        }
+        if close_stash {
+            self.close_stash_overlay();
+        }
+    }
+
+    fn hideout_ui(&mut self, ui: &mut egui::Ui) {
+        if self.modding.is_some() {
+            self.modding_ui(ui);
+            return;
+        }
+        let stash_open = self.hideout.as_ref().is_some_and(|h| h.stash_open);
+        if stash_open {
+            if self.stash_ui(ui, "◀ Back to hideout (Esc)") {
+                self.close_stash_overlay();
+            }
+            return;
+        }
+        let Some(h) = self.hideout.as_mut() else { return };
+        ui::hideout::draw_hud(ui, h, &self.profile.hideout);
+        if let Some(station) = h.open_station {
+            let action = ui::hideout::station_window(
+                ui,
+                station,
+                &self.profile.hideout,
+                &self.profile.stash,
+                h.station_status.as_ref(),
+            );
+            match action {
+                Some(ui::hideout::StationAction::Upgrade) => {
+                    match crate::hideout::upgrade(&mut self.profile.hideout, &mut self.profile.stash, station) {
+                        Ok(level) => {
+                            crate::hideout::world::apply_station_decor(&mut h.world, station, level);
+                            h.station_status = Some((format!("{} upgraded to level {level}", station.name()), false));
+                            h.message(format!("{} upgraded to level {level}!", station.name()));
+                        }
+                        Err(e) => h.station_status = Some((e, true)),
+                    }
+                    self.save_hideout_edits();
+                    self.save();
+                }
+                Some(ui::hideout::StationAction::Craft(i)) => {
+                    let all = crate::hideout::recipes();
+                    if let Some(r) = all.get(i) {
+                        match crate::hideout::craft(&self.profile.hideout, &mut self.profile.stash, r) {
+                            Ok(()) => h.station_status = Some((format!("Crafted {} (sent to stash)", r.name()), false)),
+                            Err(e) => h.station_status = Some((e, true)),
+                        }
+                    }
+                    self.save();
+                }
+                Some(ui::hideout::StationAction::Close) => {
+                    if let Some(h) = self.hideout.as_mut() {
+                        h.open_station = None;
+                    }
+                }
+                None => {}
+            }
+        }
+        if self.paused {
+            match ui::menu::pause_menu(ui, false, &mut self.settings) {
+                Some(PauseAction::Resume) => self.paused = false,
+                Some(PauseAction::BackToMenu) => self.leave_hideout(),
+                Some(PauseAction::Quit) => self.quit_requested = true,
+                _ => {}
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -289,6 +463,7 @@ impl Game {
 
         match self.screen {
             Screen::Raid => self.update_raid(dt, input, renderer),
+            Screen::Hideout => self.update_hideout(dt, input, renderer),
             Screen::Stash => {
                 if input.pressed(KeyCode::Escape) {
                     if self.modding.is_some() {
@@ -374,11 +549,12 @@ impl Game {
             Screen::Stash => {
                 if self.modding.is_some() {
                     self.modding_ui(ui);
-                } else {
-                    self.stash_ui(ui);
+                } else if self.stash_ui(ui, "◀ Main menu (Esc)") {
+                    self.leave_stash();
                 }
             }
             Screen::Raid => self.raid_ui(ui),
+            Screen::Hideout => self.hideout_ui(ui),
             Screen::Summary => match &self.last_outcome {
                 Some(o) => {
                     if ui::menu::raid_summary(ui, o) {
@@ -391,14 +567,14 @@ impl Game {
     }
 
     fn main_menu_ui(&mut self, ui: &mut egui::Ui) {
-        let action = ui::menu::main_menu(ui, &self.profile, self.notice.as_deref(), &mut self.confirm_reset, false);
+        let action = ui::menu::main_menu(ui, &self.profile, self.notice.as_deref(), &mut self.confirm_reset, true);
         match action {
             Some(MainMenuAction::StartRaid) => self.start_raid(),
             Some(MainMenuAction::Stash) => {
                 self.screen = Screen::Stash;
                 self.notice = None;
             }
-            Some(MainMenuAction::Hideout) => {}
+            Some(MainMenuAction::Hideout) => self.enter_hideout(),
             Some(MainMenuAction::Quit) => self.quit_requested = true,
             Some(MainMenuAction::EmergencyKit) => {
                 let kit = [
@@ -423,12 +599,13 @@ impl Game {
         }
     }
 
-    fn stash_ui(&mut self, ui: &mut egui::Ui) {
+    /// Stash + equipment screen. Returns true when the back button is pressed.
+    fn stash_ui(&mut self, ui: &mut egui::Ui, back_label: &str) -> bool {
         let mut back = false;
         let mut sort = false;
         egui::Panel::top("stash_top").show(ui, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("◀ Main menu (Esc)").clicked() {
+                if ui.button(back_label).clicked() {
                     back = true;
                 }
                 ui.separator();
@@ -479,9 +656,7 @@ impl Game {
         if let Some((item, origin)) = modding {
             self.open_modding(item, origin);
         }
-        if back {
-            self.leave_stash();
-        }
+        back
     }
 
     fn modding_ui(&mut self, ui: &mut egui::Ui) {
@@ -663,6 +838,34 @@ impl Game {
                     ambient = 0.9;
                 }
             }
+            Screen::Hideout => {
+                if let Some(w) = self.modding.as_ref().and_then(|m| m.item.weapon.as_ref()) {
+                    models::showcase(&mut self.viewmodel, w, self.time);
+                    vm_proj = Some(showcase_proj);
+                    ambient = 0.9;
+                } else if let Some(h) = &self.hideout {
+                    draw_world = true;
+                    ambient = 0.42;
+                    let proj = crate::render::perspective(self.settings.fov_deg.to_radians(), aspect, 0.05, 200.0);
+                    view_proj = proj * h.player.view_matrix();
+                    cam_pos = h.player.eye_pos();
+                    let overlay = h.stash_open || h.open_station.is_some();
+                    if !overlay {
+                        if let Some(hit) = h.target() {
+                            block_outline(&mut self.dynamic, hit.pos);
+                        }
+                        // The selected block, held in hand.
+                        let b = h.selected_block();
+                        let bob = (h.player.walk_phase * 3.2).sin().abs() * 0.015 * (h.player.horizontal_speed() / 4.0).min(1.0);
+                        let m = Mat4::from_translation(Vec3::new(0.34, -0.32 - bob, -0.6))
+                            * Mat4::from_rotation_y(0.6)
+                            * Mat4::from_rotation_x(0.25)
+                            * Mat4::from_scale(Vec3::splat(0.24));
+                        self.viewmodel.add_cube_tiled(m, [255, 255, 255, 255], b.info().emissive, b.info().tiles[1]);
+                        vm_proj = Some(crate::render::perspective(62f32.to_radians(), aspect, 0.01, 10.0));
+                    }
+                }
+            }
             Screen::Summary => {}
         }
         FrameScene {
@@ -682,6 +885,9 @@ impl Game {
 
     /// Save on exit. Quitting mid-raid counts as MIA.
     pub fn on_exit(&mut self) {
+        if self.hideout.is_some() {
+            self.leave_hideout();
+        }
         self.close_modding();
         if self.screen == Screen::Stash {
             self.leave_stash();
@@ -699,6 +905,13 @@ impl Game {
 
     /// Place the camera at a fixed pose (debug / screenshots). y <= 0 means "on the ground".
     pub fn debug_camera(&mut self, c: [f32; 5]) {
+        if let (Screen::Hideout, Some(h)) = (self.screen, self.hideout.as_mut()) {
+            h.player.pos = Vec3::new(c[0], if c[1] <= 0.0 { 4.0 } else { c[1] }, c[2]);
+            h.player.yaw = c[3];
+            h.player.pitch = c[4];
+            h.player.noclip = c[1] > 0.0;
+            return;
+        }
         if self.raid.is_none() {
             self.start_raid();
         }
@@ -756,6 +969,13 @@ impl Game {
     pub fn debug_screen(&mut self, name: &str) {
         match name {
             "stash" => self.screen = Screen::Stash,
+            "hideout" => self.enter_hideout(),
+            "station" => {
+                self.enter_hideout();
+                if let Some(h) = self.hideout.as_mut() {
+                    h.open_station = Some(crate::hideout::StationKind::Workbench);
+                }
+            }
             "raid" => self.start_raid(),
             "loot" => {
                 self.start_raid();
@@ -778,6 +998,31 @@ impl Game {
             }
             _ => {}
         }
+    }
+}
+
+/// Thin dark edges around the targeted block.
+fn block_outline(mb: &mut MeshBuilder, p: glam::IVec3) {
+    let o = p.as_vec3() - Vec3::splat(0.004);
+    let s = 1.008;
+    let c = [16, 16, 16, 255];
+    let corners = |x: f32, y: f32, z: f32| o + Vec3::new(x, y, z) * s;
+    let edges = [
+        ((0., 0., 0.), (1., 0., 0.)),
+        ((0., 1., 0.), (1., 1., 0.)),
+        ((0., 0., 1.), (1., 0., 1.)),
+        ((0., 1., 1.), (1., 1., 1.)),
+        ((0., 0., 0.), (0., 1., 0.)),
+        ((1., 0., 0.), (1., 1., 0.)),
+        ((0., 0., 1.), (0., 1., 1.)),
+        ((1., 0., 1.), (1., 1., 1.)),
+        ((0., 0., 0.), (0., 0., 1.)),
+        ((1., 0., 0.), (1., 0., 1.)),
+        ((0., 1., 0.), (0., 1., 1.)),
+        ((1., 1., 0.), (1., 1., 1.)),
+    ];
+    for ((ax, ay, az), (bx, by, bz)) in edges {
+        mb.add_beam(corners(ax, ay, az), corners(bx, by, bz), 0.018, c, true);
     }
 }
 

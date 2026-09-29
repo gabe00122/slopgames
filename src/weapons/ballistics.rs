@@ -1,6 +1,6 @@
 //! Hitscan ballistics: block penetration/destruction and body-part hit detection.
 
-use glam::{IVec3, Mat4, Vec3};
+use glam::{IVec3, Vec3};
 
 use super::AmmoType;
 use crate::player::BodyPart;
@@ -16,10 +16,6 @@ pub struct Hitbox {
 }
 
 impl Hitbox {
-    /// Model matrix of the box (unit cube -> hitbox) for rendering.
-    pub fn matrix(&self) -> Mat4 {
-        Mat4::from_translation(self.center) * Mat4::from_rotation_y(self.yaw) * Mat4::from_scale(self.half * 2.0)
-    }
 }
 
 /// Local layout of a humanoid (feet at origin, facing -Z): (part, centre, half-extent).

@@ -142,7 +142,6 @@ pub struct EguiFrame {
 }
 
 pub struct Renderer {
-    pub window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -464,7 +463,6 @@ impl Renderer {
         let dyn_vm = DynamicMesh::new(&device, "dynamic viewmodel");
 
         Ok(Self {
-            window,
             surface,
             device,
             queue,
@@ -487,10 +485,6 @@ impl Renderer {
             stats_chunks_drawn: 0,
             stats_triangles: 0,
         })
-    }
-
-    pub fn size(&self) -> (u32, u32) {
-        (self.config.width, self.config.height)
     }
 
     pub fn aspect(&self) -> f32 {

@@ -282,10 +282,6 @@ pub struct InventoryUi {
 }
 
 impl InventoryUi {
-    pub fn is_dragging(&self) -> bool {
-        self.drag.is_some()
-    }
-
     pub fn status(&self) -> Option<&(String, bool)> {
         self.status.as_ref()
     }

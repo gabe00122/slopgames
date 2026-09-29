@@ -564,7 +564,12 @@ impl Raid {
 
         // --- Movement ---
         let mut mv = if accept { gather_move_input(input) } else { Default::default() };
-        let mut speed_mult = 1.0 - 0.4 * self.gun.ads;
+        let armor_weight: f32 = [EquipSlot::Helmet, EquipSlot::Armor]
+            .iter()
+            .filter_map(|s| self.equipment.armor_state(*s))
+            .map(|a| a.kind.def().weight)
+            .sum();
+        let mut speed_mult = (1.0 - 0.4 * self.gun.ads) * (1.0 - armor_weight);
         if self.gun.is_reloading() {
             speed_mult *= 0.85;
         }
@@ -921,6 +926,11 @@ impl Raid {
             let n = b.normal.as_vec3();
             if b.destroyed {
                 self.effects.block_break(b.pos.as_vec3() + Vec3::splat(0.5), color, &mut self.rng);
+            } else if b.penetrated {
+                // Entry and exit puffs so shots through walls read clearly.
+                self.effects.debris(b.point + n * 0.02, n, color, 4, &mut self.rng);
+                let exit = b.point + dir * 1.05;
+                self.effects.debris(exit, dir, color, 4, &mut self.rng);
             } else {
                 self.effects.debris(b.point + n * 0.02, n, color, 5, &mut self.rng);
                 if matches!(

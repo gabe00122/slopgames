@@ -26,7 +26,7 @@ pub fn draw_crosshair(p: &egui::Painter, center: Pos2, gap: f32, color: Color32)
     p.line_segment([center - egui::vec2(0.0, gap), center - egui::vec2(0.0, gap + len)], s);
 }
 
-fn text(p: &egui::Painter, pos: Pos2, align: Align2, s: impl ToString, size: f32, color: Color32) -> Rect {
+pub fn text(p: &egui::Painter, pos: Pos2, align: Align2, s: impl ToString, size: f32, color: Color32) -> Rect {
     // Drop shadow for readability over bright scenes.
     p.text(pos + egui::vec2(1.0, 1.0), align, s.to_string(), FontId::proportional(size), Color32::from_black_alpha(180));
     p.text(pos, align, s.to_string(), FontId::proportional(size), color)

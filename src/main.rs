@@ -74,7 +74,7 @@ fn parse_args() -> Args {
             "--help" | "-h" => {
                 println!(
                     "voxel-raid [--save FILE] [--seed N]\n\
-                     debug: [--smoke-frames N] [--screenshot out.png] [--screen stash|raid|loot|summary]\n\
+                     debug: [--smoke-frames N] [--screenshot out.png] [--screen stash|raid|loot|summary|hideout]\n\
                      \x20      [--cam x,y,z,yaw,pitch] [--force-ads] [--mod-demo]"
                 );
                 std::process::exit(0);
@@ -177,7 +177,7 @@ impl ApplicationHandler for App {
                 return;
             }
         };
-        let mut renderer =
+        let renderer =
             match pollster::block_on(Renderer::new(window.clone(), event_loop.owned_display_handle())) {
                 Ok(r) => r,
                 Err(e) => {

@@ -31,11 +31,6 @@ pub struct Effects {
 }
 
 impl Effects {
-    pub fn clear(&mut self) {
-        self.particles.clear();
-        self.tracers.clear();
-    }
-
     pub fn debris(&mut self, pos: Vec3, normal: Vec3, color: [u8; 4], count: usize, rng: &mut Rng) {
         for _ in 0..count {
             let v = normal * rng.range_f32(1.0, 3.5)

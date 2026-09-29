@@ -135,10 +135,6 @@ impl World {
         self.get(IVec3::new(x, y, z))
     }
 
-    pub fn is_solid(&self, p: IVec3) -> bool {
-        self.get(p).is_solid()
-    }
-
     /// Set a block during world generation (no dirty tracking).
     pub fn set_gen(&mut self, p: IVec3, b: Block) {
         if !self.in_bounds(p) {

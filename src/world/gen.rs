@@ -69,8 +69,8 @@ pub fn generate_raid_map(seed: u64) -> (World, MapInfo) {
     let sx = world.size.x;
     let sz = world.size.z;
     let mut rng = Rng::new(seed);
-    let road_a_phase = rng.range_f32(0.0, 6.28);
-    let road_b_phase = rng.range_f32(0.0, 6.28);
+    let road_a_phase = rng.range_f32(0.0, std::f32::consts::TAU);
+    let road_b_phase = rng.range_f32(0.0, std::f32::consts::TAU);
     let mut g = Gen {
         w: world,
         rng,

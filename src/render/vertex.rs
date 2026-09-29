@@ -75,10 +75,6 @@ impl MeshBuilder {
         self.indices.clear();
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.indices.is_empty()
-    }
-
     /// A unit cube centred at the origin, transformed by `m`, flat coloured.
     pub fn add_cube(&mut self, m: Mat4, color: [u8; 4], emissive: bool) {
         self.add_cube_tiled(m, color, emissive, Tile::White);

@@ -191,17 +191,6 @@ impl Weapon {
         w
     }
 
-    /// Bare receiver with no attachments at all.
-    pub fn stripped(receiver: ReceiverId) -> Self {
-        Self {
-            receiver,
-            attachments: [None; 6],
-            loaded: None,
-            rounds: 0,
-            auto_mode: receiver.def().full_auto,
-        }
-    }
-
     pub fn loaded_with(mut self, ammo: AmmoType, count: u32) -> Self {
         let cap = self.capacity();
         self.loaded = Some(ammo);
@@ -298,21 +287,14 @@ pub trait PartSource {
     fn give(&mut self, a: AttachmentId) -> bool;
 }
 
-/// A simple bag of loose attachments.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// A simple bag of loose attachments (used by tests; the game uses the stash).
+#[cfg(test)]
+#[derive(Clone, Debug, Default)]
 pub struct PartsBin {
     pub parts: Vec<(AttachmentId, u32)>,
 }
 
-impl PartsBin {
-    /// One of every attachment (sandbox / testing).
-    pub fn everything() -> Self {
-        Self {
-            parts: AttachmentId::ALL.iter().map(|a| (*a, 1)).collect(),
-        }
-    }
-}
-
+#[cfg(test)]
 impl PartSource for PartsBin {
     fn count(&self, a: AttachmentId) -> u32 {
         self.parts.iter().filter(|(p, _)| *p == a).map(|(_, n)| *n).sum()

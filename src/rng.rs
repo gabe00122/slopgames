@@ -83,14 +83,6 @@ impl Rng {
         weights.len() - 1
     }
 
-    /// Approximately normal distributed value (sum of uniforms), mean 0, std ~1.
-    pub fn gaussian(&mut self) -> f32 {
-        let mut s = 0.0;
-        for _ in 0..4 {
-            s += self.f32();
-        }
-        (s - 2.0) * 1.732
-    }
 }
 
 /// Integer hash used for noise and procedural textures.
@@ -101,10 +93,6 @@ pub fn hash2(x: i32, y: i32, seed: u32) -> u32 {
         .wrapping_add(seed.wrapping_mul(2_246_822_519));
     h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
     h ^ (h >> 16)
-}
-
-pub fn hash3(x: i32, y: i32, z: i32, seed: u32) -> u32 {
-    hash2(x, hash2(y, z, seed) as i32, seed ^ 0xA5A5_A5A5)
 }
 
 /// Hash to float in [0, 1).
