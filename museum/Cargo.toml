@@ -1,0 +1,19 @@
+[package]
+name = "museum"
+version = "0.1.0"
+edition = "2024"
+description = "The Museum of Human Achievement: a walkable 3D museum built with Bevy."
+license = "MIT"
+
+[dependencies]
+bevy = { version = "0.19.1", features = ["wayland", "system_font_discovery", "area_light_luts"] }
+
+[profile.dev]
+opt-level = 1
+
+# Bevy is far faster when optimized, even in dev builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3

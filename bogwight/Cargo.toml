@@ -1,0 +1,20 @@
+[package]
+name = "bogwight"
+version = "0.1.0"
+edition = "2024"
+description = "BOGWIGHT: a physics-driven 2D side-scroller where you are the thing in the swamp, and the monster hunters followed you in. Built with Bevy and Avian."
+license = "MIT"
+
+[dependencies]
+bevy = { version = "0.19.1", features = ["wayland"] }
+avian2d = { version = "0.7.0", default-features = false, features = ["2d", "f32", "parry-f32", "parallel", "xpbd_joints"] }
+
+[profile.dev]
+opt-level = 1
+
+# Bevy is far faster when optimized, even in dev builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3

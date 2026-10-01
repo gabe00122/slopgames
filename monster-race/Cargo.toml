@@ -1,0 +1,19 @@
+[package]
+name = "monster-race"
+version = "0.1.0"
+edition = "2024"
+description = "Monster Race: split-screen kart racing on the backs of colossal beasts, built with Bevy."
+license = "MIT"
+
+[dependencies]
+bevy = { version = "0.19.1", features = ["wayland"] }
+
+[profile.dev]
+opt-level = 1
+
+# Bevy is far faster when optimized, even in dev builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
